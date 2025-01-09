@@ -1,6 +1,6 @@
 import { CSSProperties } from "react"
 
-function Topbar(): JSX.Element {
+function Topbar({setFilter}: {setFilter: Function}): JSX.Element {
     // get the website url from the environment variables
     const website = import.meta.env.PRELOAD_VITE_WEBSITE;
 
@@ -15,7 +15,10 @@ function Topbar(): JSX.Element {
 
                 <div>
                     <input id="searchBar" className="form-control border-white border-2 bg-transparent text-white"
-                        placeholder="Search" type="text" style={{ width: "500px" }} />
+                        placeholder="Search" type="text" style={{ width: "500px" }}
+                        onInput={(ev) => {
+                            setFilter(ev.currentTarget.value);
+                        }} />
                 </div>
 
                 <a role="button" className='text-white icon-link icon-link-hover'

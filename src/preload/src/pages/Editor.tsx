@@ -58,6 +58,16 @@ function Editor(): JSX.Element {
         }
     }
 
+    // Change the title of the project
+    const changeTitle = async (currentTarget) => {
+        if (currentTarget.innerText.trim().length == 0) {
+            currentTarget.innerText = project.title;
+        }
+        currentTarget.contentEditable = "false";
+
+        await changeProjectTitle(Projects, index, currentTarget.innerText);
+    }
+
     return (
         <>
             <div className="h-100 rounded-end shadow container text-center pt-5"
@@ -104,17 +114,13 @@ function Editor(): JSX.Element {
                         }}
 
                         onBlur={async (e) => {
-                            if (e.currentTarget.innerText.trim().length == 0) {
-                                e.currentTarget.innerText = project.title;
-                            }
-                            e.currentTarget.contentEditable = "false";
-
-                            await changeProjectTitle(Projects, index, e.currentTarget.innerText);
+                            await changeTitle(e.currentTarget);
                         }}
 
-                        onKeyDown={(e) => {
+                        onKeyDown={async (e) => {
                             if (e.key === 'Enter')
-                                e.preventDefault();
+                                e.preventDefault(),
+                                    await changeTitle(e.currentTarget);
                         }}
 
                         onInput={(e) => {
