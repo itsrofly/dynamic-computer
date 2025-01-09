@@ -1,0 +1,57 @@
+@import './base.css';
+
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-size: cover;
+  user-select: none;
+  font-family: "Oxygen Mono" !important;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  background-color: #272727;
+  overflow-y: auto;
+}
+
+.invisible-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+#root::-webkit-scrollbar {
+  display: none;
+}
+
+/* width */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #5FB2FF;
+  border-radius: 25px;
+}
+
+
+.col-centered {
+  float: none;
+  margin-right: auto !important;
+  margin-left: auto !important;
+}
+
+.grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  row-gap: 40px;
+  column-gap: 40px;
+}
