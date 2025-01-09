@@ -5,7 +5,9 @@ import { runProject, stopProject } from "../tools/Project";
 
 
 function Card({ index, refresh }: { index: number, refresh: Function }): JSX.Element {
+  // Get the projects from the context
   const Projects = useContext(ProjectsContext);
+  // Get the project from the index
   const project = Projects[index];
 
   return (

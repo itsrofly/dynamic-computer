@@ -1,6 +1,7 @@
 import { CSSProperties } from "react"
 
 function Topbar(): JSX.Element {
+    // get the website url from the environment variables
     const website = import.meta.env.PRELOAD_VITE_WEBSITE;
 
     return (

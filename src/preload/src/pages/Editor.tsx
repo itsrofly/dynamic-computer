@@ -6,24 +6,34 @@ import NotFound from "../components/404";
 import { ProjectsContext } from "../main";
 
 function Editor(): JSX.Element {
+    // Get the search params to get the index of the project
     const [searchParams, _setSearchParams] = useSearchParams();
-    const [refreshPage, setRefreshPage] = useState(false);
+    // State to store the project data
     const [projectData, setProjectData] = useState<projectSettings | null>();
-
+    // Get the projects from the context
+    const Projects = useContext(ProjectsContext);
+    // State to refresh the page
+    const [refreshPage, setRefreshPage] = useState(false);
+    // Get the navigate function to navigate to the home page
     const navigate = useNavigate();
 
+    // Get the index of the project from the search params
     const indexParam = searchParams.get("index");
+    // Parse the index to an integer
     const index = indexParam !== null ? parseInt(indexParam) : null;
 
+
+    // If the index is null, return a 404 page
     if (index === null)
         return (<NotFound />);
 
-    const Projects = useContext(ProjectsContext);
+    // Get the project from the projects array
     const project = Projects[index];
-
+    // If the project is undefined, return a 404 page
     if (project == undefined)
         return (<NotFound />);
 
+    // Get the project settings/data, when the page is refreshed/loaded
     useEffect(() => {
         const getProject = async () => {
             setProjectData(await getProjectSettings(Projects, index));
@@ -31,18 +41,19 @@ function Editor(): JSX.Element {
         getProject();
     }, [refreshPage]);
 
+    // Function to auto expand the textarea
     const autoExpand = (currentTarget: HTMLTextAreaElement): void => {
         currentTarget.style.height = "40px";
         currentTarget.style.height = `${currentTarget.scrollHeight}px`;
     }
 
+    // Function to send a message
     const sendMessage = async (currentTarget: HTMLTextAreaElement): Promise<void> => {
         const message = currentTarget.value;
         if (message) {
             await addMessage(Projects, index, "user", message);
             setRefreshPage(!refreshPage);
             currentTarget.value = "";
-
             autoExpand(currentTarget);
         }
     }

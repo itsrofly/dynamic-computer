@@ -9,10 +9,11 @@ export interface Project {
   latestDate: string;
   isRunning?: boolean
 }
-
+// Create a context to store all projects
 export const ProjectsContext = createContext<Project[]>([]);
 
 export const notOpenSourceRightNow = async () => {
+  // Load all projects from projects.json
   const data = await ipcRenderer.invoke('readFile', 'projects.json')
 
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(

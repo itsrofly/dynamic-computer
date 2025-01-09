@@ -3,6 +3,7 @@ import { createProject } from "../tools/Project";
 import { ProjectsContext } from "../main";
 
 function CardCreate({ refresh }: { refresh: Function }): JSX.Element {
+    // Get the ProjectsContext
     const Projects = useContext(ProjectsContext);
     
     return (

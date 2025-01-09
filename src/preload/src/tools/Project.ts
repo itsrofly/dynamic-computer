@@ -96,6 +96,7 @@ export async function deleteProject(Projects: Project[], index: number): Promise
  */
 export async function changeProjectTitle(Projects: Project[], index: number, newTitle: string): Promise<void> {
     const project = Projects[index];
+    // Update the project title
     Object.assign(Projects[index], { ...project, title: newTitle });
 
     // Update the projects.json file
@@ -112,9 +113,10 @@ export async function changeProjectTitle(Projects: Project[], index: number, new
  */
 export async function addMessage(Projects: Project[], index: number, role: "user" | "assistant", content: string): Promise<void> {
     const project = Projects[index];
+    // Get the project settings/data
     const projectSettings =
         JSON.parse(await ipcRenderer.invoke('readFile', join(project.path, 'settings.json'))) as projectSettings;
-
+    // Add the new message
     projectSettings.messages.push({ role, content });
 
     // Update the settings.json file
@@ -130,17 +132,22 @@ export async function addMessage(Projects: Project[], index: number, role: "user
  */
 export async function getProjectSettings(Projects: Project[], index: number): Promise<projectSettings> {
     const project = Projects[index];
+    // Get the project settings/data
     return JSON.parse(await ipcRenderer.invoke('readFile', join(project.path, 'settings.json'))) as projectSettings;
 }
 
 export async function stopProject(Projects: Project[], index: number): Promise<void> {
     const project = Projects[index];
+    // Stop the project
     ipcRenderer.invoke('stopProject', Projects, index);
+    // Update the project status
     Object.assign(Projects[index], { ...project, isRunning: false });
 }
 
 export async function runProject(Projects: Project[], index: number): Promise<void> {
     const project = Projects[index];
+    // Run the project
     Object.assign(Projects[index], { ...project, isRunning: true });
+    // Update the projects.json file
     ipcRenderer.invoke('runProject', Projects, index);
 }
