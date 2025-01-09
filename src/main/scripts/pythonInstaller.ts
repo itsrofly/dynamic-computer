@@ -39,8 +39,10 @@ interface Context {
 const execPromise = promisify(exec);
 
 const isPythonInstalled = async (dir: string): Promise<boolean> => {
-  // Command to get python version
-  const command = join(dir, 'python/bin/python --version');
+  try {
+
+    // Command to get python version
+    const command = join(dir, 'python', 'bin', 'python --version');
 
     // Execute the command
     const { stderr } = await execPromise(command);
@@ -51,6 +53,10 @@ const isPythonInstalled = async (dir: string): Promise<boolean> => {
       return false;
     }
     return true;
+  } catch (error) {
+    return false;
+  }
+
 }
 
 const pythonInstallerRun = (url: string, dir: string, terminal: "powershell" | "shell") => {
@@ -70,6 +76,8 @@ const pythonInstallerRun = (url: string, dir: string, terminal: "powershell" | "
   rm ${tar}
 `;
 
+  console.log('Python installation started');
+  
   // Execute the command
   const child = exec(command);
 
@@ -82,7 +90,7 @@ async function pythonInstaller(context: Context) {
   try {
     // Check if python is already installed
     const isInstalled = await isPythonInstalled(context.appOutDir);
-    if (!isInstalled)
+    if (isInstalled)
       return;
 
     // Get the app output directory
@@ -106,7 +114,7 @@ async function pythonInstaller(context: Context) {
       console.error(`Unsupported platform: ${context.electronPlatformName}`);
 
   } catch (error) {
-    console.error('Error during afterExtract:', error);
+    console.error('Error during python installation process:', error);
   }
 };
 
