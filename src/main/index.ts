@@ -49,7 +49,7 @@ app.whenReady().then(async () => {
 
   // Install Python if not already installed
   pythonInstaller({
-    appOutDir: join(app.getPath("userData")),
+    appOutDir: join(app.getPath('userData')),
     electronPlatformName: process.platform,
     arch: process.arch
   })

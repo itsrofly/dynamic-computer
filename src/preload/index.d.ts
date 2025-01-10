@@ -1,5 +1,5 @@
 declare global {
   interface Window {
-    async notOpenSourceRightNow
+    notOpenSourceRightNow: Promise<void>
   }
 }
