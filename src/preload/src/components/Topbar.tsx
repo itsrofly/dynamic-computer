@@ -1,6 +1,6 @@
-import { CSSProperties } from 'react'
+import { CSSProperties, Dispatch, SetStateAction } from 'react'
 
-function Topbar({ setFilter }: { setFilter: (value: string) => object }): JSX.Element {
+function Topbar({ setFilter }: { setFilter: Dispatch<SetStateAction<string>> }): JSX.Element {
   // get the website url from the environment variables
   const website = import.meta.env.PRELOAD_VITE_WEBSITE
 

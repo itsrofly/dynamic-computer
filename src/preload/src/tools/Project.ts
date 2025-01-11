@@ -27,7 +27,6 @@ function randowWelcomeMessage(): string {
     'Hello! What can I do for you today?',
     'Hey! How can I assist you today?'
   ]
-
   return messages[Math.floor(Math.random() * messages.length)]
 }
 

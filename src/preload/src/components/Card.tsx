@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ProjectsContext } from '../main'
 import { runProject, stopProject } from '../tools/Project'
 
-function Card({ index, refresh }: { index: number; refresh: () => object }): JSX.Element {
+function Card({ index, refresh }: { index: number; refresh: () => void }): JSX.Element {
   // Get the projects from the context
   const Projects = useContext(ProjectsContext)
   // Get the project from the index

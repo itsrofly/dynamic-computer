@@ -2,6 +2,7 @@ import { ChildProcess, spawn } from 'child_process'
 import { app, ipcMain, webContents } from 'electron/main'
 import { existsSync, promises as fsPromises } from 'fs'
 import { join, parse } from 'path'
+import { callback_server } from './oauthServer'
 
 interface projectSettings {
   file: string
@@ -142,5 +143,10 @@ app.whenReady().then(() => {
 
     // Kill the process if it's running
     processRunning[filePath]?.kill(), (processRunning[filePath] = null)
+  })
+
+  ipcMain.handle('oauthServer', async () => {
+    // Start the OAuth server
+    return callback_server()
   })
 })

@@ -2,7 +2,7 @@ import { useContext } from 'react'
 import { createProject } from '../tools/Project'
 import { ProjectsContext } from '../main'
 
-function CardCreate({ refresh }: { refresh: () => object }): JSX.Element {
+function CardCreate({ refresh }: { refresh: () => void }): JSX.Element {
   // Get the ProjectsContext
   const Projects = useContext(ProjectsContext)
 
