@@ -1,13 +1,15 @@
-import { Profile, SignIn, SignOut } from '../tools/User'
+import { type User } from '@supabase/supabase-js'
+import { SignIn, SignOut } from '../tools/User'
 
 function ProfileModal(): JSX.Element {
   // get the website url from the environment variables
   const website = import.meta.env.PRELOAD_VITE_WEBSITE
+  // User object
+  let user: User | null = null
 
-  // Get profile from local storage
-  const profile = localStorage.getItem('profile')
-    ? (JSON.parse(localStorage.getItem('profile') as string) as Profile)
-    : null
+  // Get the user from localStorage
+  const userStorage = localStorage.getItem('user')
+  if (userStorage) user = JSON.parse(userStorage)
 
   return (
     <>
@@ -22,7 +24,7 @@ function ProfileModal(): JSX.Element {
           <div className="modal-content">
             <div className="modal-header">
               <h1 className="modal-title fs-5" id="profileModalLabel">
-                {profile ? 'Profile' : 'Sign In'}
+                {user ? 'Profile' : 'Sign In'}
               </h1>
               <button
                 type="button"
@@ -32,7 +34,7 @@ function ProfileModal(): JSX.Element {
               ></button>
             </div>
             <div className="modal-body flex-column d-flex p-5">
-              {!profile ? (
+              {!user ? (
                 // If not signed in show sign in buttons
                 <>
                   <div className="w-100 d-flex justify-content-center">
@@ -40,7 +42,7 @@ function ProfileModal(): JSX.Element {
                       role="button"
                       className="d-flex justify-content-center btn btn-outline-dark icon-link"
                       style={{ width: '300px' }}
-                      onClick={SignIn}
+                      onClick={() => SignIn('google')}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -65,7 +67,7 @@ function ProfileModal(): JSX.Element {
                       role="button"
                       className="d-flex justify-content-center btn btn-outline-dark icon-link"
                       style={{ width: '300px' }}
-                      onClick={SignIn}
+                      onClick={() => SignIn('github')}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -85,7 +87,7 @@ function ProfileModal(): JSX.Element {
                 // If signed in show profile info and (manage, sign out) buttons
                 <>
                   <div className="w-100 d-flex justify-content-center mb-3">
-                    <span>{profile.email}</span>
+                    <span>{user.email}</span>
                   </div>
 
                   <div className="w-100 d-flex justify-content-center gap-3">
