@@ -57,14 +57,30 @@ export async function createProject(Projects: Project[]): Promise<void> {
   }
 
   // Create settings.json file
-  await ipcRenderer.invoke('writeFile', join(uniquePath, 'settings.json'), JSON.stringify(settings))
+  await ipcRenderer.invoke(
+    'writeFile',
+    join(project.path, 'settings.json'),
+    JSON.stringify(settings)
+  )
+
+  // Create gitignore file
+  await ipcRenderer.invoke(
+    'writeFile',
+    join(project.path, '.gitignore'),
+    'settings.json\n__pycache__\n*.pyc\n*.pyo\n*.pyd\n*.pyw\n*.pyz\n*.pywz\n*.pyzw'
+  )
 
   // Create main.py file
   await ipcRenderer.invoke(
     'writeFile',
-    join(uniquePath, settings.file),
+    join(project.path, settings.file),
     "#Write the application code here\nprint('Hello, World!')"
   )
+
+  // Initialize the git repository
+  await ipcRenderer.invoke('gitInit', project.path)
+  await ipcRenderer.invoke('gitAdd', project.path, '.')
+  await ipcRenderer.invoke('gitCommit', project.path, 'Create Project')
 
   // Add the new project to the projects array
   Projects.push({ ...project, isRunning: false })

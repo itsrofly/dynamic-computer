@@ -38,14 +38,6 @@ function Editor(): JSX.Element {
   // If the project is undefined, return a 404 page
   if (project == undefined) return <NotFound />
 
-  // Get the project settings/data, when the page is refreshed/loaded
-  useEffect(() => {
-    const getProject = async (): Promise<void> => {
-      setProjectData(await getProjectSettings(Projects, index))
-    }
-    getProject()
-  }, [refreshPage])
-
   // Function to auto expand the textarea
   const autoExpand = (currentTarget: HTMLTextAreaElement): void => {
     currentTarget.style.height = '40px'
@@ -72,6 +64,14 @@ function Editor(): JSX.Element {
 
     await changeProjectTitle(Projects, index, currentTarget.innerText)
   }
+
+  // Get the project settings/data, when the page is refreshed/loaded
+  useEffect(() => {
+    const getProject = async (): Promise<void> => {
+      setProjectData(await getProjectSettings(Projects, index))
+    }
+    getProject()
+  }, [refreshPage])
 
   return (
     <>

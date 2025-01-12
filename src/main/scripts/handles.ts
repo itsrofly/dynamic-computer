@@ -3,6 +3,7 @@ import { app, ipcMain, webContents } from 'electron/main'
 import { existsSync, promises as fsPromises } from 'fs'
 import { join, parse } from 'path'
 import { callback_server } from './oauthServer'
+import git from 'isomorphic-git'
 
 interface projectSettings {
   file: string
@@ -149,4 +150,43 @@ app.whenReady().then(() => {
     // Start the OAuth server
     return callback_server()
   })
+
+  ipcMain.handle('gitInit', async (_ev, folder: string) => {
+    const path = join(app.getPath('userData'), folder)
+
+    if (existsSync(path)) await git.init({ fs: fsPromises, dir: path })
+  })
+
+  ipcMain.handle('gitCommit', async (_ev, folder, message: string) => {
+    const dir = join(app.getPath('userData'), folder)
+
+    if (existsSync(dir))
+      await git.commit({
+        fs: fsPromises,
+        dir,
+        message,
+        author: { name: 'Dynamic Computer' }
+      })
+  })
+
+  ipcMain.handle('gitAdd', async (_ev, folder, name: string) => {
+    const dir = join(app.getPath('userData'), folder)
+
+    if (existsSync(dir)) await git.add({ fs: fsPromises, dir, filepath: name })
+  })
+
+  ipcMain.handle('gitRemove', async (_ev, folder, name: string) => {
+    const dir = join(app.getPath('userData'), folder)
+
+    if (existsSync(dir)) await git.remove({ fs: fsPromises, dir, filepath: name })
+  })
+
+  ipcMain.handle('getAllCommits', async (_ev, folder) => {
+    const dir = join(app.getPath('userData'), folder)
+
+    if (existsSync(dir)) return await git.log({ fs: fsPromises, dir, depth: 5 })
+    return []
+  })
+
+  // Undo latest commit &  Discard all changes files
 })
