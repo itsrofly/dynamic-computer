@@ -38,7 +38,7 @@ interface Context {
 // Promisify exec: Run commands asynchronously
 const execPromise = promisify(exec)
 
-const isPythonInstalled = async (dir: string): Promise<boolean> => {
+export async function isPythonInstalled(dir: string): Promise<boolean> {
   try {
     // Command to get python version
     const command = join(dir, 'python', 'bin', 'python --version')
@@ -57,13 +57,13 @@ const isPythonInstalled = async (dir: string): Promise<boolean> => {
   }
 }
 
-const pythonInstallerRun = (url: string, dir: string, terminal: 'powershell' | 'shell'): void => {
+function unpackPython(url: string, dir: string, terminal: 'ps' | 'sh'): void {
   // Paths for the downloaded files
   const tar = join(dir, 'python.tar.gz') // For linux and darwin
   const zip = join(dir, 'python.zip') // For windows
 
   const command =
-    terminal === 'powershell'
+    terminal === 'ps'
       ? `
   powershell -Command "
   Invoke-WebRequest -Uri '${url}' -OutFile '${zip}';
@@ -87,17 +87,15 @@ const pythonInstallerRun = (url: string, dir: string, terminal: 'powershell' | '
   })
 }
 
-async function pythonInstaller(context: Context): Promise<void> {
+export default (context: Context): void => {
   try {
-    // Check if python is already installed
-    const isInstalled = await isPythonInstalled(context.appOutDir)
-    if (isInstalled) return
-
     // Get the app output directory
     const appOutDir = context.appOutDir
+    // Get the platform name
+    const platform = context.electronPlatformName
 
-    // Python installer paths based on the platform
-    const pythonInstallerPaths = {
+    // Python standalone
+    const staticLinks = {
       win32:
         'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+2050106-x86-64-pc-windows-msvc-shared-install_only.zip',
       darwin:
@@ -106,17 +104,18 @@ async function pythonInstaller(context: Context): Promise<void> {
         'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+20250106-x86_64-unknown-linux-gnu-install_only.tar.gz'
     }
 
-    // Run the python installer based on the platform
-    if (context.electronPlatformName === 'win32')
-      pythonInstallerRun(pythonInstallerPaths.win32, appOutDir, 'powershell')
-    else if (context.electronPlatformName === 'darwin')
-      pythonInstallerRun(pythonInstallerPaths.darwin, appOutDir, 'shell')
-    else if (context.electronPlatformName === 'linux')
-      pythonInstallerRun(pythonInstallerPaths.linux, appOutDir, 'shell')
-    else console.error(`Unsupported platform: ${context.electronPlatformName}`)
+    switch (platform) {
+      case 'win32':
+        unpackPython(staticLinks.win32, appOutDir, 'ps')
+        break
+      case 'darwin':
+        unpackPython(staticLinks.darwin, appOutDir, 'sh')
+        break
+      default:
+        unpackPython(staticLinks.linux, appOutDir, 'sh')
+        break
+    }
   } catch (error) {
     console.error('Error during python installation process:', error)
   }
 }
-
-export default pythonInstaller

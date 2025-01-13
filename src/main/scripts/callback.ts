@@ -1,10 +1,14 @@
+// Electron
 import { webContents } from 'electron'
 
+// Required modules
 const http = require('http')
 const url = require('url')
 
+// Website URL
 const WEBSITE = import.meta.env.VITE_WEBSITE
-export const callback_server = (): string => {
+
+export default (): string => {
   const webContent = webContents.getFocusedWebContents()
   // Maintain a hash of all connected sockets
   // eslint-disable-next-line prefer-const
