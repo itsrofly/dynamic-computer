@@ -1,6 +1,7 @@
 import { ipcRenderer, shell } from 'electron'
 import { createClient } from '@supabase/supabase-js'
 
+// Create the supabase client
 export const supabase = createClient(
   import.meta.env.PRELOAD_VITE_SUPABASE_URL,
   import.meta.env.PRELOAD_VITE_SUPABASE_ANON_KEY,
@@ -12,6 +13,10 @@ export const supabase = createClient(
   }
 )
 
+/**
+ *  Sign in with the provider
+ * @param provider 'google' | 'github'
+ */
 export async function SignIn(provider: 'google' | 'github'): Promise<void> {
   const url = await ipcRenderer.invoke('oauthServer')
 
@@ -29,6 +34,9 @@ export async function SignIn(provider: 'google' | 'github'): Promise<void> {
   if (data.url) shell.openExternal(data.url)
 }
 
+/**
+ * Sign out the user
+ */
 export async function SignOut(): Promise<void> {
   await supabase.auth.signOut()
   window.location.reload()

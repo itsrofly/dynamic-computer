@@ -1,9 +1,17 @@
-import { app, shell, BrowserWindow } from 'electron'
+// Electron
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+
+// Scripts
 import pythonInstaller from './scripts/pythonInstaller'
-import './scripts/handles'
+import { callback_server } from './scripts/oauthServer'
+
+// Handles
+import './handles/git'
+import './handles/file'
+import './handles/project'
 
 function createWindow(): void {
   // Create the browser window.
@@ -52,6 +60,12 @@ app.whenReady().then(async () => {
     appOutDir: join(app.getPath('userData')),
     electronPlatformName: process.platform,
     arch: process.arch
+  })
+
+  // Handle OAuth server requests
+  ipcMain.handle('oauthServer', async () => {
+    // Start the OAuth server
+    return callback_server()
   })
 
   // Default open or close DevTools by F12 in development

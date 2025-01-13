@@ -10,29 +10,8 @@ export interface projectSettings {
   log: { date: string; output: string }[]
 }
 
-function generateUniqueId(): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let result = ''
-  for (let i = 0; i < 10; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length))
-  }
-  return result
-}
-
-function randowWelcomeMessage(): string {
-  const messages = [
-    "Hi! What's up?",
-    "Hey, what's on your mind?",
-    'Hi! How can I help you today?',
-    'Hello! What can I do for you today?',
-    'Hey! How can I assist you today?'
-  ]
-  return messages[Math.floor(Math.random() * messages.length)]
-}
-
 /**
  * Create a new project
- * Status: Stable
  * @param Projects - The projects array
  */
 export async function createProject(Projects: Project[]): Promise<void> {
@@ -91,7 +70,6 @@ export async function createProject(Projects: Project[]): Promise<void> {
 
 /**
  * Delete a project
- * Status: Stable
  * @param Projects - The projects array
  * @param index - The index of the project to be deleted in the projects array
  */
@@ -108,7 +86,6 @@ export async function deleteProject(Projects: Project[], index: number): Promise
 
 /**
  * Change the title of a project
- * Status: Stable
  * @param Projects
  * @param index
  * @param newTitle
@@ -128,7 +105,6 @@ export async function changeProjectTitle(
 
 /**
  * Add a message to the project
- * Status: Stable
  * @param Projects
  * @param index
  * @param role
@@ -158,7 +134,6 @@ export async function addMessage(
 
 /**
  * Get the project settings/data
- * Status: Stable
  * @param Projects
  * @param index
  * @returns Promise<projectSettings>
@@ -174,6 +149,11 @@ export async function getProjectSettings(
   ) as projectSettings
 }
 
+/**
+ * Stop a project
+ * @param Projects
+ * @param index
+ */
 export async function stopProject(Projects: Project[], index: number): Promise<void> {
   const project = Projects[index]
   // Stop the project
@@ -182,10 +162,36 @@ export async function stopProject(Projects: Project[], index: number): Promise<v
   Object.assign(Projects[index], { ...project, isRunning: false })
 }
 
+/**
+ * Start a project
+ * @param Projects
+ * @param index
+ */
 export async function runProject(Projects: Project[], index: number): Promise<void> {
   const project = Projects[index]
   // Run the project
   Object.assign(Projects[index], { ...project, isRunning: true })
   // Update the projects.json file
   ipcRenderer.invoke('runProject', Projects, index)
+}
+
+// Auxiliary functions
+function generateUniqueId(): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let result = ''
+  for (let i = 0; i < 10; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length))
+  }
+  return result
+}
+
+function randowWelcomeMessage(): string {
+  const messages = [
+    "Hi! What's up?",
+    "Hey, what's on your mind?",
+    'Hi! How can I help you today?',
+    'Hello! What can I do for you today?',
+    'Hey! How can I assist you today?'
+  ]
+  return messages[Math.floor(Math.random() * messages.length)]
 }

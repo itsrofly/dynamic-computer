@@ -1,9 +1,7 @@
 import { ChildProcess, spawn } from 'child_process'
 import { app, ipcMain, webContents } from 'electron/main'
-import { existsSync, promises as fsPromises } from 'fs'
-import { join, parse } from 'path'
-import { callback_server } from './oauthServer'
-import git from 'isomorphic-git'
+import { promises as fsPromises } from 'fs'
+import { join } from 'path'
 
 interface projectSettings {
   file: string
@@ -23,53 +21,6 @@ interface Project {
 app.whenReady().then(() => {
   // Store the running processes
   const processRunning: { [path: string]: ChildProcess | null } = {}
-
-  ipcMain.handle('writeFile', async (_ev, name: string, content = '') => {
-    // Get the path to the user data directory
-    const userDataPath = app.getPath('userData')
-    // Create the full path to the file
-    const filePath = join(userDataPath, name)
-    // Parse the path to get the file basename
-    const parsedPath = parse(filePath)
-
-    // Ensure the directory exists
-    await fsPromises.mkdir(filePath.replace(parsedPath.base, ''), { recursive: true })
-
-    fsPromises.writeFile(filePath, content, 'utf-8')
-  })
-
-  ipcMain.handle('deleteFile', async (_ev, name: string) => {
-    // Get the path to the user data directory
-    const userDataPath = app.getPath('userData')
-    //  Create the full path to the file
-    const filePath = join(userDataPath, name)
-
-    // Check if the file exists
-    if (existsSync(filePath)) {
-      // Get the file stats
-      const stats = await fsPromises.stat(filePath)
-      if (stats.isDirectory()) {
-        // Remove the directory and all its contents
-        fsPromises.rm(filePath, { recursive: true, force: true })
-      } else {
-        // Remove the file
-        fsPromises.unlink(filePath)
-      }
-    }
-  })
-
-  ipcMain.handle('readFile', async (_ev, name: string) => {
-    // Get the path to the user data directory
-    const userDataPath = app.getPath('userData')
-    // Create the full path to the file
-    const filePath = join(userDataPath, name)
-
-    // Check if the file exists
-    if (existsSync(filePath))
-      // Read the file and return the content
-      return await fsPromises.readFile(filePath, 'utf-8')
-    return undefined
-  })
 
   ipcMain.handle('runProject', async (_ev, Projects: Project[], index: number) => {
     // Get the path to the user data directory
@@ -145,48 +96,4 @@ app.whenReady().then(() => {
     // Kill the process if it's running
     processRunning[filePath]?.kill(), (processRunning[filePath] = null)
   })
-
-  ipcMain.handle('oauthServer', async () => {
-    // Start the OAuth server
-    return callback_server()
-  })
-
-  ipcMain.handle('gitInit', async (_ev, folder: string) => {
-    const path = join(app.getPath('userData'), folder)
-
-    if (existsSync(path)) await git.init({ fs: fsPromises, dir: path })
-  })
-
-  ipcMain.handle('gitCommit', async (_ev, folder, message: string) => {
-    const dir = join(app.getPath('userData'), folder)
-
-    if (existsSync(dir))
-      await git.commit({
-        fs: fsPromises,
-        dir,
-        message,
-        author: { name: 'Dynamic Computer' }
-      })
-  })
-
-  ipcMain.handle('gitAdd', async (_ev, folder, name: string) => {
-    const dir = join(app.getPath('userData'), folder)
-
-    if (existsSync(dir)) await git.add({ fs: fsPromises, dir, filepath: name })
-  })
-
-  ipcMain.handle('gitRemove', async (_ev, folder, name: string) => {
-    const dir = join(app.getPath('userData'), folder)
-
-    if (existsSync(dir)) await git.remove({ fs: fsPromises, dir, filepath: name })
-  })
-
-  ipcMain.handle('getAllCommits', async (_ev, folder) => {
-    const dir = join(app.getPath('userData'), folder)
-
-    if (existsSync(dir)) return await git.log({ fs: fsPromises, dir, depth: 5 })
-    return []
-  })
-
-  // Undo latest commit &  Discard all changes files
 })
