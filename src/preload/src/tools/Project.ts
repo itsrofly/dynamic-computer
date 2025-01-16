@@ -1,10 +1,16 @@
 import { ipcRenderer } from 'electron'
 import { Project } from '../main'
 import { join } from 'path'
+import { supabase } from './User'
+
+export interface chat {
+  role: 'user' | 'assistant'
+  content: string
+}
 
 export interface projectSettings {
   file: string
-  messages: { role: 'user' | 'assistant'; content: string }[]
+  messages: chat[]
   commits: { date: string; message: string }[]
   dependencies: string[]
   log: { date: string; output: string }[]
@@ -110,7 +116,7 @@ export async function changeProjectTitle(
  * @param role
  * @param content
  */
-export async function addMessage(
+async function addMessage(
   Projects: Project[],
   index: number,
   role: 'user' | 'assistant',
@@ -118,9 +124,7 @@ export async function addMessage(
 ): Promise<void> {
   const project = Projects[index]
   // Get the project settings/data
-  const projectSettings = JSON.parse(
-    await ipcRenderer.invoke('readFile', join(project.path, 'settings.json'))
-  ) as projectSettings
+  const projectSettings = await getProjectSettings(Projects, index)
   // Add the new message
   projectSettings.messages.push({ role, content })
 
@@ -130,6 +134,82 @@ export async function addMessage(
     join(project.path, 'settings.json'),
     JSON.stringify(projectSettings)
   )
+}
+
+async function addErrorMessage(
+  Projects: Project[],
+  index: number,
+  content?: string
+): Promise<void> {
+  await addMessage(
+    Projects,
+    index,
+    'assistant',
+    content || 'Something went wrong. Please try again later!'
+  )
+}
+
+/**
+ * Send a message to the assistant API
+ * @returns
+ */
+export async function sendMessageToAI(
+  Projects: Project[],
+  index: number,
+  content: string
+): Promise<void> {
+  // Add message
+  await addMessage(Projects, index, 'user', content)
+
+  // Get the project settings/data
+  const projectSettings = await getProjectSettings(Projects, index)
+  const messages = projectSettings.messages
+
+  // Get authentication token
+  const {
+    data: { session }
+  } = await supabase.auth.getSession()
+  if (!session) {
+    // Not logged in message
+    await addErrorMessage(Projects, index, 'You must be logged in to use this service!')
+    return
+  }
+
+  // Payload to send to the assistant API
+  const payload = {
+    access_token: session.access_token,
+    messages,
+    app_version: '1.0.0'
+  }
+
+  const response = await supabase.functions.invoke('assistant-api', {
+    body: payload
+  })
+
+  // Handle error
+  if (response.error || !response.data || !response.data[0]) {
+    if (response.error.context && response.error.context.status == 402)
+      await addErrorMessage(
+        Projects,
+        index,
+        'To use this service, you must have an active subscription. See our website for more information!'
+      )
+    else {
+      // Something got wrong
+      await addErrorMessage(Projects, index)
+    }
+  }
+
+  const data = response.data[0]
+
+  if (data.message && data.message.content) {
+    const responseContent = data.message.content
+    await addMessage(Projects, index, 'assistant', responseContent)
+  }
+  if (data.message && data.message.tool_calls) {
+    const functionsToCall = data.message.tool_calls
+    console.log(functionsToCall)
+  }
 }
 
 /**

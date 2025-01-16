@@ -1,16 +1,23 @@
+// React
 import { useContext, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+
+// Tools
 import {
-  addMessage,
+  sendMessageToAI,
   changeProjectTitle,
   deleteProject,
   getProjectSettings,
   projectSettings,
   runProject,
-  stopProject
+  stopProject,
+  chat
 } from '../tools/Project'
+
+// Components
 import MessageCard from '../components/Message'
 import NotFound from '../components/404'
+
 import { ProjectsContext } from '../main'
 
 function Editor(): JSX.Element {
@@ -22,6 +29,8 @@ function Editor(): JSX.Element {
   const Projects = useContext(ProjectsContext)
   // State to refresh the page
   const [refreshPage, setRefreshPage] = useState(false)
+  // State to show loading feedback
+  const [loadingMessages, setLoadingMessages] = useState<chat[]>([])
   // Get the navigate function to navigate to the home page
   const navigate = useNavigate()
 
@@ -46,12 +55,19 @@ function Editor(): JSX.Element {
 
   // Function to send a message
   const sendMessage = async (currentTarget: HTMLTextAreaElement): Promise<void> => {
+    // Send message
     const message = currentTarget.value
     if (message) {
-      await addMessage(Projects, index, 'user', message)
-      setRefreshPage(!refreshPage)
+      // Set the loading feedback
+      setLoadingMessages([
+        { role: 'user', content: message },
+        { role: 'assistant', content: '...' }
+      ])
       currentTarget.value = ''
       autoExpand(currentTarget)
+      // Send the message to the assistant
+      await sendMessageToAI(Projects, index, message)
+      setRefreshPage(!refreshPage)
     }
   }
 
@@ -69,6 +85,7 @@ function Editor(): JSX.Element {
   useEffect(() => {
     const getProject = async (): Promise<void> => {
       setProjectData(await getProjectSettings(Projects, index))
+      setLoadingMessages([])
     }
     getProject()
   }, [refreshPage])
@@ -184,6 +201,22 @@ function Editor(): JSX.Element {
 
         <div className="container w-100 h-100 mt-5 overflow-y-auto">
           {projectData?.messages.map((message, index) => {
+            if (message.role === 'user') {
+              return (
+                <div key={index} className="w-100 d-flex justify-content-end pt-5">
+                  <MessageCard message={message.content} />
+                </div>
+              )
+            } else {
+              return (
+                <div key={index} className="w-100 d-flex justify-content-start pt-5">
+                  <span>{message.content}</span>
+                </div>
+              )
+            }
+          })}
+
+          {loadingMessages.map((message, index) => {
             if (message.role === 'user') {
               return (
                 <div key={index} className="w-100 d-flex justify-content-end pt-5">
