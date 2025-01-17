@@ -4,6 +4,11 @@ import { promises as fsPromises } from 'fs'
 import { join } from 'path'
 import { readFile, writeFile, gitInit, gitAdd, gitCommit, deleteFile } from '../scripts/helpers'
 
+/**
+ * Project Handles
+ * Use only index to know the context project, we should not trust values from the renderer process!
+ */
+
 interface projectSettings {
   file: string
   messages: { role: 'user' | 'assistant'; content: string }[]
