@@ -12,13 +12,13 @@ import {
   runProject,
   stopProject,
   chat
-} from '../tools/Project'
+} from '../handles/Project'
 
 // Components
 import MessageCard from '../components/Message'
 import NotFound from '../components/404'
 
-import { ProjectsContext } from '../main'
+import { ProjectsContext } from '../App'
 
 function Editor(): JSX.Element {
   // Get the search params to get the index of the project

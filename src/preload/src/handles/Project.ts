@@ -17,64 +17,6 @@ export interface projectSettings {
 }
 
 /**
- * Create a new project
- * @param Projects - The projects array
- */
-export async function createProject(Projects: Project[]): Promise<void> {
-  const today = new Date()
-  const formattedDate = today.toISOString().split('T')[0]
-  const uniquePath = join('Projects', generateUniqueId())
-
-  // Project settings and data
-  const settings: projectSettings = {
-    file: 'main.py',
-    messages: [{ role: 'assistant', content: randowWelcomeMessage() }],
-    commits: [{ date: formattedDate, message: 'Create Project' }],
-    dependencies: [],
-    log: []
-  }
-
-  // Project information
-  const project: Project = {
-    title: 'New Project',
-    path: uniquePath,
-    latestDate: formattedDate
-  }
-
-  // Create settings.json file
-  await ipcRenderer.invoke(
-    'writeFile',
-    join(project.path, 'settings.json'),
-    JSON.stringify(settings)
-  )
-
-  // Create gitignore file
-  await ipcRenderer.invoke(
-    'writeFile',
-    join(project.path, '.gitignore'),
-    'settings.json\n__pycache__\n*.pyc\n*.pyo\n*.pyd\n*.pyw\n*.pyz\n*.pywz\n*.pyzw'
-  )
-
-  // Create main.py file
-  await ipcRenderer.invoke(
-    'writeFile',
-    join(project.path, settings.file),
-    "#Write the application code here\nprint('Hello, World!')"
-  )
-
-  // Initialize the git repository
-  await ipcRenderer.invoke('gitInit', project.path)
-  await ipcRenderer.invoke('gitAdd', project.path, '.')
-  await ipcRenderer.invoke('gitCommit', project.path, 'Create Project')
-
-  // Add the new project to the projects array
-  Projects.push({ ...project, isRunning: false })
-
-  // Update the projects.json file
-  await ipcRenderer.invoke('writeFile', 'projects.json', JSON.stringify(Projects))
-}
-
-/**
  * Delete a project
  * @param Projects - The projects array
  * @param index - The index of the project to be deleted in the projects array
@@ -253,25 +195,4 @@ export async function runProject(Projects: Project[], index: number): Promise<vo
   Object.assign(Projects[index], { ...project, isRunning: true })
   // Update the projects.json file
   ipcRenderer.invoke('runProject', Projects, index)
-}
-
-// Auxiliary functions
-function generateUniqueId(): string {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let result = ''
-  for (let i = 0; i < 10; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length))
-  }
-  return result
-}
-
-function randowWelcomeMessage(): string {
-  const messages = [
-    "Hi! What's up?",
-    "Hey, what's on your mind?",
-    'Hi! How can I help you today?',
-    'Hello! What can I do for you today?',
-    'Hey! How can I assist you today?'
-  ]
-  return messages[Math.floor(Math.random() * messages.length)]
 }

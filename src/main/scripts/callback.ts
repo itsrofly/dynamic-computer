@@ -33,7 +33,7 @@ export default (): string => {
         res.end() // End the response
 
         // Send the code to the preload/render process
-        webContent.send('session:exchange', code)
+        webContent.send('callback:exchange', code)
       } else {
         // Manage Error
         let error_code

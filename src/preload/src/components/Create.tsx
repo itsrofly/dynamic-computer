@@ -1,19 +1,13 @@
-import { useContext } from 'react'
-import { createProject } from '../tools/Project'
-import { ProjectsContext } from '../main'
+import { ipcRenderer } from 'electron'
 
-function CardCreate({ refresh }: { refresh: () => void }): JSX.Element {
-  // Get the ProjectsContext
-  const Projects = useContext(ProjectsContext)
-
+function CardCreate(): JSX.Element {
   return (
     <>
       <div>
         <button
           className="border-2 m-auto rounded bg-transparent"
           onClick={async () => {
-            await createProject(Projects)
-            refresh()
+            await ipcRenderer.invoke('projects:create')
           }}
           style={{ height: '150px', width: '220px', borderColor: '#5FB2FF' }}
         >

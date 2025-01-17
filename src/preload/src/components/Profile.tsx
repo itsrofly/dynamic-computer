@@ -1,16 +1,23 @@
 import { type User } from '@supabase/supabase-js'
-import { SignIn, SignOut } from '../tools/User'
+import { SignIn, SignOut, supabase } from '../handles/User'
+import { useEffect, useState } from 'react'
 
 function ProfileModal(): JSX.Element {
+  const [user, setUser] = useState<User | null>(null)
+
   // get the website url from the environment variables
   const website = import.meta.env.PRELOAD_VITE_WEBSITE
-  // User object
-  let user: User | null = null
 
-  // Get the user from localStorage
-  const userStorage = localStorage.getItem('user')
-  if (userStorage) user = JSON.parse(userStorage)
+  useEffect(() => {
+    const loadSync = async (): Promise<void> => {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser()
+      setUser(user)
+    }
 
+    loadSync()
+  }, [])
   return (
     <>
       <div

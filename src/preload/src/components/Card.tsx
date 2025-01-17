@@ -1,14 +1,7 @@
-import { useContext } from 'react'
 import { Link } from 'react-router-dom'
-import { ProjectsContext } from '../main'
-import { runProject, stopProject } from '../tools/Project'
+import { Project } from '../App'
 
-function Card({ index, refresh }: { index: number; refresh: () => void }): JSX.Element {
-  // Get the projects from the context
-  const Projects = useContext(ProjectsContext)
-  // Get the project from the index
-  const project = Projects[index]
-
+function Card({ project, index }: { project: Project; index: number }): JSX.Element {
   return (
     <>
       <div>
@@ -44,9 +37,7 @@ function Card({ index, refresh }: { index: number; refresh: () => void }): JSX.E
           <button
             className={`${project.isRunning ? 'btn-danger' : 'btn-primary'} btn shadow border-0 mt-3`}
             onClick={() => {
-              if (project.isRunning) stopProject(Projects, index)
-              else runProject(Projects, index)
-              refresh()
+              // Run project
             }}
             style={{ width: '150px' }}
           >

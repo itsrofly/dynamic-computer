@@ -18,7 +18,7 @@ export const supabase = createClient(
  * @param provider 'google' | 'github'
  */
 export async function SignIn(provider: 'google' | 'github'): Promise<void> {
-  const url = await ipcRenderer.invoke('oauthServer')
+  const url = await ipcRenderer.invoke('callback:server')
 
   // Create the auth and set the redirect to the server listener
   const { data } = await supabase.auth.signInWithOAuth({
@@ -30,7 +30,7 @@ export async function SignIn(provider: 'google' | 'github'): Promise<void> {
     }
   })
 
-  console.log(data)
+  console.log(data.url)
   // Open url in default url
   if (data.url) shell.openExternal(data.url)
 }

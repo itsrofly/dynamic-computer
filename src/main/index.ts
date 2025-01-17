@@ -9,9 +9,7 @@ import pythonInstaller, { isPythonInstalled } from './scripts/python'
 import callback_server from './scripts/callback'
 
 // Handles
-import './handles/git'
-import './handles/file'
-import './handles/project'
+import './handles/projects'
 
 function createWindow(): void {
   // Create the browser window.
@@ -68,7 +66,7 @@ app.whenReady().then(async () => {
   }
 
   // Handle OAuth server requests
-  ipcMain.handle('oauthServer', async () => {
+  ipcMain.handle('callback:server', async () => {
     // Start the OAuth server
     return callback_server()
   })
