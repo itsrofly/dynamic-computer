@@ -2,8 +2,21 @@ import { app } from 'electron/main'
 import { existsSync, promises as fsPromises } from 'fs'
 import { join, parse } from 'path'
 import git from 'isomorphic-git'
+import { createClient } from '@supabase/supabase-js'
 
-export const readFile = async (file: string): Promise<string | undefined> => {
+// Create the supabase client
+export const supabase = createClient(
+  import.meta.env.MAIN_VITE_SUPABASE_URL,
+  import.meta.env.MAIN_VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      flowType: 'pkce'
+    }
+  }
+)
+
+export const readFile = async (file: string): Promise<string | null> => {
   // Get the path to the user data directory
   const userDataPath = app.getPath('userData')
 
@@ -14,7 +27,7 @@ export const readFile = async (file: string): Promise<string | undefined> => {
   if (existsSync(filePath))
     // Read the file and return the content
     return await fsPromises.readFile(filePath, 'utf-8')
-  return undefined
+  return null
 }
 
 export const writeFile = async (file: string, content = ''): Promise<void> => {
@@ -105,14 +118,24 @@ export const gitCommit = async (folder: string, message: string): Promise<void> 
   }
 }
 
-export const gitListFiles = async (folder: string): Promise<string[]> => {
-  // Get the path to the project folder stored in the user data directory
-  const dir = join(app.getPath('userData'), folder)
+export const gitListFiles = async (
+  folder: string
+): Promise<{ file: string; content: string }[]> => {
+  // Create an array to store the file contents
+  const contents: { file: string; content: string }[] = []
 
-  // Check if the folder exists
-  if (existsSync(dir)) {
-    // List all the files in the repository
-    return await git.listFiles({ fs: fsPromises, dir, ref: 'HEAD' })
+  // Get the path to the project folder
+  const dir = join(app.getPath('userData'), folder)
+  const files = await git.listFiles({ fs: fsPromises, dir })
+
+  // Read the contents of each file and save it to the array
+  for (const file of files) {
+    // Ignore gitignore file
+    if (file === '.gitignore') continue
+
+    // Read the file content
+    const content = await readFile(join(dir, file))
+    contents.push({ file: parse(file).base, content: content || '' })
   }
-  return []
+  return contents
 }

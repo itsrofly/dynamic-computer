@@ -1,7 +1,16 @@
 import { ChildProcess, spawn } from 'child_process'
 import { app, ipcMain, webContents } from 'electron/main'
 import { join } from 'path'
-import { readFile, writeFile, gitInit, gitAdd, gitCommit, deleteFile } from '../scripts/helpers'
+
+import {
+  readFile,
+  writeFile,
+  gitInit,
+  gitAdd,
+  gitCommit,
+  deleteFile,
+  supabase
+} from '../scripts/helpers'
 
 /**
  * Project Handles
@@ -9,7 +18,7 @@ import { readFile, writeFile, gitInit, gitAdd, gitCommit, deleteFile } from '../
  */
 
 interface Chat {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
 }
 
@@ -17,7 +26,7 @@ interface ProjectSettings {
   file: string
   messages: Chat[]
   commits: { date: string; message: string }[]
-  dependencies: string[]
+  dependencies: string
   log: { date: string; output: string }[]
 }
 
@@ -25,6 +34,12 @@ interface Project {
   title: string
   path: string // Projects/{random folder name}
   latestDate: string
+}
+
+interface ToolCallEditFile {
+  file_content: string
+  commit_message: string
+  pip_requirements: string
 }
 
 app.whenReady().then(() => {
@@ -39,6 +54,18 @@ app.whenReady().then(() => {
     'Hello! What can I do for you today?',
     'Hey! How can I assist you today?'
   ]
+
+  const defaultFile = `import tkinter as tk
+# Always change the title of the application to one more related to what the user wants.
+appTitle = 'Hello World!'
+# Create the main window
+root = tk.Tk()
+root.title(appTitle)
+# Create a label with the message
+label = tk.Label(root, text='Hello World!')
+label.pack(pady=20)
+# Start the application
+root.mainloop()`
 
   ipcMain.handle('projects:create', async () => {
     try {
@@ -64,7 +91,7 @@ app.whenReady().then(() => {
           }
         ],
         commits: [{ date: formattedDate, message: 'Create Project' }],
-        dependencies: [],
+        dependencies: '',
         log: []
       }
 
@@ -75,7 +102,7 @@ app.whenReady().then(() => {
       )
 
       // Create main.py file
-      await writeFile(join(projectFolder, settings.file), "print('Hello World!')")
+      await writeFile(join(projectFolder, settings.file), defaultFile)
 
       // Create settings.json file
       await writeFile(join(projectFolder, 'settings.json'), JSON.stringify(settings))
@@ -92,8 +119,8 @@ app.whenReady().then(() => {
         latestDate: formattedDate
       }
 
-      // Add project to the projects config file
-      projects.push(project) // First append the new project to the projects array
+      // Add project to the projects config file, in the first element
+      projects.unshift(project)
       await writeFile('projects.json', JSON.stringify(projects))
 
       // Send the update to the renderer process
@@ -161,11 +188,11 @@ app.whenReady().then(() => {
       // Log the output
       processRunning[filePath].stdout?.on('data', async (data) => {
         console.log(data.toString())
-
         const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
         if (projectData) {
-          projectData.log.push({ date: new Date().toISOString(), output: data.toString() })
+          // Don't let the string escape and brake the JSON
+          projectData.log.push({ date: new Date().toISOString(), output: JSON.stringify(data) })
           await writeFile(settingsPath, JSON.stringify(projectData))
         }
       })
@@ -177,7 +204,7 @@ app.whenReady().then(() => {
         const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
         if (projectData) {
-          projectData.log.push({ date: new Date().toISOString(), output: data.toString() })
+          projectData.log.push({ date: new Date().toISOString(), output: JSON.stringify(data) })
           await writeFile(settingsPath, JSON.stringify(projectData))
         }
       })
@@ -287,7 +314,6 @@ app.whenReady().then(() => {
     'projects:send',
     async (_ev, index: number, content: string, access_token: string) => {
       try {
-        console.log(access_token)
         // Get projects in config file
         const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
 
@@ -303,6 +329,124 @@ app.whenReady().then(() => {
         // Add the new message
         projectData.messages.push({ role: 'user', content })
 
+        // Copy of messages
+        const messages = [...projectData.messages]
+
+        // Read my file
+        const fileContent = await readFile(join(project.path, projectData.file))
+
+        // Add context of the main file
+        messages.push({
+          role: 'system',
+          content: `(App) Source Code='${fileContent}'`
+        })
+
+        // Send the message to the assistant
+        // Payload to send to the assistant API
+        const payload = {
+          access_token: access_token,
+          messages,
+          app_version: '1.0.0'
+        }
+
+        const response = await supabase.functions.invoke('assistant-api', {
+          body: payload
+        })
+
+        // Add the assistant response if error
+        if (response.error) {
+          if (response.error.context && response.error.context.status) {
+            switch (response.error.context.status) {
+              case 401:
+                projectData.messages.push({
+                  role: 'assistant',
+                  content: `Something went wrong, please make sure you're logged in!`
+                })
+                break
+              case 402:
+                projectData.messages.push({
+                  role: 'assistant',
+                  content: `Something went wrong, please make sure you have a valid subscription!`
+                })
+                break
+              default:
+                projectData.messages.push({
+                  role: 'assistant',
+                  content: `Something went wrong, please try again later!`
+                })
+                break
+            }
+          } else {
+            projectData.messages.push({
+              role: 'assistant',
+              content: `Something went wrong, please try again later!`
+            })
+          }
+        }
+
+        // Get response data
+        const data = response.data
+        if (data && data[0]) {
+          const choice = data[0]
+          // Get the message from the assistant
+          const message = choice.message
+
+          if (message.content)
+            projectData.messages.push({ role: 'assistant', content: message.content })
+          if (message.tool_calls) {
+            message.tool_calls.forEach(
+              async (tool_call: { function: { name: string; arguments: string } }) => {
+                if (tool_call.function.name !== 'edit_main_file') {
+                  projectData.messages.push({
+                    role: 'assistant',
+                    content: 'Unrecognized Operation!'
+                  })
+                } else {
+                  // Get the arguments
+                  const args: ToolCallEditFile = JSON.parse(tool_call.function.arguments)
+
+                  // Update the file content
+                  await writeFile(join(project.path, projectData.file), args.file_content)
+
+                  // Update the dependencies
+                  projectData.dependencies = args.pip_requirements
+
+                  // Update the commits
+                  projectData.commits.push({
+                    date: new Date().toISOString(),
+                    message: args.commit_message
+                  })
+
+                  // Commit the changes
+                  await gitCommit(project.path, args.commit_message)
+
+                  // Install the dependencies
+                  try {
+                    const runner = spawn(join(app.getPath('userData'), 'python', 'bin', 'pip'), [
+                      'install',
+                      args.pip_requirements
+                    ])
+
+                    // Log the output
+                    runner.stdout?.on('data', async (data) => {
+                      console.log(data.toString())
+                    })
+
+                    // Log the error
+                    runner.stderr?.on('data', async (data) => {
+                      console.log(data.toString())
+                    })
+                  } catch (error) {
+                    projectData.messages.push({
+                      role: 'assistant',
+                      content: `Something went wrong, dependencies have not been installed!`
+                    })
+                  }
+                }
+              }
+            )
+          }
+        }
         // Update the settings.json file
         await writeFile(settingsPath, JSON.stringify(projectData))
       } catch (error) {
