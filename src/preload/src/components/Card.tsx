@@ -1,7 +1,16 @@
 import { Link } from 'react-router-dom'
 import { Project } from '../App'
+import { ipcRenderer } from 'electron'
+import { useState } from 'react'
 
 function Card({ project, index }: { project: Project; index: number }): JSX.Element {
+  const [isRunning, setIsRunning] = useState(false)
+
+  ipcRenderer.once('projects:stopped', (_event, i) => {
+    if (i === index) {
+      setIsRunning(false)
+    }
+  })
   return (
     <>
       <div>
@@ -36,12 +45,18 @@ function Card({ project, index }: { project: Project; index: number }): JSX.Elem
 
           <button
             className={`${project.isRunning ? 'btn-danger' : 'btn-primary'} btn shadow border-0 mt-3`}
-            onClick={() => {
-              // Run project
+            onClick={async () => {
+              if (project.isRunning) {
+                await ipcRenderer.invoke('projects:stop', index)
+                setIsRunning(false)
+              } else {
+                setIsRunning(true)
+                await ipcRenderer.invoke('projects:start', index)
+              }
             }}
             style={{ width: '150px' }}
           >
-            {project.isRunning ? 'Stop' : 'Run'}
+            {isRunning ? 'Stop' : 'Run'}
           </button>
         </div>
       </div>

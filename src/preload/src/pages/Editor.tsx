@@ -2,40 +2,40 @@
 import { useContext, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
-// Tools
-import {
-  sendMessageToAI,
-  changeProjectTitle,
-  deleteProject,
-  getProjectSettings,
-  projectSettings,
-  runProject,
-  stopProject,
-  chat
-} from '../handles/Project'
-
 // Components
 import MessageCard from '../components/Message'
 import NotFound from '../components/404'
 
 import { ProjectsContext } from '../App'
+import { ProjectSettings, Chat } from '../projects'
+import { ipcRenderer } from 'electron'
+import { supabase } from '../handles/User'
 
 function Editor(): JSX.Element {
   // Get the search params to get the index of the project
   const searchParams = useSearchParams()
+
   // State to store the project data
-  const [projectData, setProjectData] = useState<projectSettings | null>()
+  const [projectData, setProjectData] = useState<ProjectSettings | null>()
+
   // Get the projects from the context
   const Projects = useContext(ProjectsContext)
+
   // State to refresh the page
   const [refreshPage, setRefreshPage] = useState(false)
+
+  // State to show if the project is running
+  const [isRunning, setIsRunning] = useState(false)
+
   // State to show loading feedback
-  const [loadingMessages, setLoadingMessages] = useState<chat[]>([])
+  const [loadingMessages, setLoadingMessages] = useState<Chat[]>([])
+
   // Get the navigate function to navigate to the home page
   const navigate = useNavigate()
 
   // Get the index of the project from the search params
   const indexParam = searchParams[0].get('index')
+
   // Parse the index to an integer
   const index = indexParam !== null ? parseInt(indexParam) : null
 
@@ -44,8 +44,16 @@ function Editor(): JSX.Element {
 
   // Get the project from the projects array
   const project = Projects[index]
+
   // If the project is undefined, return a 404 page
   if (project == undefined) return <NotFound />
+
+  // Listen for the project to stop
+  ipcRenderer.once('projects:stopped', (_event, i) => {
+    if (i === index) {
+      setIsRunning(false)
+    }
+  })
 
   // Function to auto expand the textarea
   const autoExpand = (currentTarget: HTMLTextAreaElement): void => {
@@ -63,10 +71,19 @@ function Editor(): JSX.Element {
         { role: 'user', content: message },
         { role: 'assistant', content: '...' }
       ])
+
+      // Clear the textarea
       currentTarget.value = ''
       autoExpand(currentTarget)
+
+      // Get the access token
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+
       // Send the message to the assistant
-      await sendMessageToAI(Projects, index, message)
+      await ipcRenderer.invoke('projects:send', index, message, accessToken)
       setRefreshPage(!refreshPage)
     }
   }
@@ -78,13 +95,13 @@ function Editor(): JSX.Element {
     }
     currentTarget.contentEditable = 'false'
 
-    await changeProjectTitle(Projects, index, currentTarget.innerText)
+    await ipcRenderer.invoke('projects:rename', index, currentTarget.innerText)
   }
 
   // Get the project settings/data, when the page is refreshed/loaded
   useEffect(() => {
     const getProject = async (): Promise<void> => {
-      setProjectData(await getProjectSettings(Projects, index))
+      setProjectData(await ipcRenderer.invoke('projects:settings', index))
       setLoadingMessages([])
     }
     getProject()
@@ -114,13 +131,17 @@ function Editor(): JSX.Element {
         <div className="mt-5">
           <a
             role="button"
-            onClick={() => {
-              if (project.isRunning) stopProject(Projects, index)
-              else runProject(Projects, index)
-              setRefreshPage(!refreshPage)
+            onClick={async () => {
+              if (project.isRunning) {
+                await ipcRenderer.invoke('projects:stop', index)
+                setIsRunning(false)
+              } else {
+                setIsRunning(true)
+                await ipcRenderer.invoke('projects:start', index)
+              }
             }}
           >
-            {project.isRunning ? (
+            {isRunning ? (
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 height="36px"
@@ -148,7 +169,7 @@ function Editor(): JSX.Element {
           <a
             role="button"
             onClick={async () => {
-              await deleteProject(Projects, index)
+              await ipcRenderer.invoke('projects:delete', index)
               navigate('/')
             }}
           >

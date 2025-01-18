@@ -1,6 +1,5 @@
 import { ChildProcess, spawn } from 'child_process'
 import { app, ipcMain, webContents } from 'electron/main'
-import { promises as fsPromises } from 'fs'
 import { join } from 'path'
 import { readFile, writeFile, gitInit, gitAdd, gitCommit, deleteFile } from '../scripts/helpers'
 
@@ -9,9 +8,14 @@ import { readFile, writeFile, gitInit, gitAdd, gitCommit, deleteFile } from '../
  * Use only index to know the context project, we should not trust values from the renderer process!
  */
 
-interface projectSettings {
+interface Chat {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+interface ProjectSettings {
   file: string
-  messages: { role: 'user' | 'assistant'; content: string }[]
+  messages: Chat[]
   commits: { date: string; message: string }[]
   dependencies: string[]
   log: { date: string; output: string }[]
@@ -19,9 +23,8 @@ interface projectSettings {
 
 interface Project {
   title: string
-  path: string
+  path: string // Projects/{random folder name}
   latestDate: string
-  isRunning?: boolean
 }
 
 app.whenReady().then(() => {
@@ -39,6 +42,8 @@ app.whenReady().then(() => {
 
   ipcMain.handle('projects:create', async () => {
     try {
+      // Get the focused web content
+      const webContent = webContents.getFocusedWebContents()
       // Date - When the project was created
       const today = new Date()
       const formattedDate = today.toISOString().split('T')[0]
@@ -50,7 +55,7 @@ app.whenReady().then(() => {
       const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
 
       // Project settings
-      const settings: projectSettings = {
+      const settings: ProjectSettings = {
         file: 'main.py', // The file that the project will run
         messages: [
           {
@@ -70,7 +75,7 @@ app.whenReady().then(() => {
       )
 
       // Create main.py file
-      await writeFile(join(projectFolder, settings.file))
+      await writeFile(join(projectFolder, settings.file), "print('Hello World!')")
 
       // Create settings.json file
       await writeFile(join(projectFolder, 'settings.json'), JSON.stringify(settings))
@@ -91,8 +96,6 @@ app.whenReady().then(() => {
       projects.push(project) // First append the new project to the projects array
       await writeFile('projects.json', JSON.stringify(projects))
 
-      const webContent = webContents.getFocusedWebContents()
-
       // Send the update to the renderer process
       webContent?.send('projects:update')
     } catch (error) {
@@ -102,6 +105,9 @@ app.whenReady().then(() => {
 
   ipcMain.handle('projects:delete', async (_ev, index: number) => {
     try {
+      // Get the focused web content
+      const webContent = webContents.getFocusedWebContents()
+
       // Get projects in config file
       const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
 
@@ -116,29 +122,30 @@ app.whenReady().then(() => {
 
       // Update the projects.json file
       await writeFile('projects.json', JSON.stringify(projects))
+
+      // Send the update to the renderer process
+      webContent?.send('projects:update')
     } catch (error) {
       console.log(error)
     }
   })
 
-  ipcMain.handle('projects:run', async (_ev, index: number) => {
+  ipcMain.handle('projects:start', async (_ev, index: number) => {
     try {
+      // Get the path to the user data directory
+      const userDataPath = app.getPath('userData')
+
       // Get projects in config file
       const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
 
       // Try get the project with index
       const project = projects[index]
 
-      // Get the path to the user data directory
-      const userDataPath = app.getPath('userData')
-
       // Get the path to the project settings file
-      const settingsPath = join(userDataPath, project.path, 'settings.json')
+      const settingsPath = join(project.path, 'settings.json')
 
       // Read the project settings
-      const projectData = JSON.parse(
-        await fsPromises.readFile(settingsPath, 'utf-8')
-      ) as projectSettings
+      const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
       // Create the full path to the project file to run
       const filePath = join(userDataPath, project.path, projectData.file)
@@ -146,7 +153,7 @@ app.whenReady().then(() => {
       // Kill the process if it's running
       processRunning[filePath]?.kill(), (processRunning[filePath] = null)
 
-      // Start the process, detached so it doesn't close when the app closes
+      // Start the process, detached so it doesn't close when the app closes, here you should use full paths
       processRunning[filePath] = spawn(join(userDataPath, 'python', 'bin', 'python'), [filePath], {
         detached: true
       })
@@ -155,24 +162,24 @@ app.whenReady().then(() => {
       processRunning[filePath].stdout?.on('data', async (data) => {
         console.log(data.toString())
 
-        const projectData = JSON.parse(
-          await fsPromises.readFile(settingsPath, 'utf-8')
-        ) as projectSettings
+        const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
-        projectData.log.push({ date: new Date().toISOString(), output: data.toString() })
-        fsPromises.writeFile(settingsPath, JSON.stringify(projectData), 'utf-8')
+        if (projectData) {
+          projectData.log.push({ date: new Date().toISOString(), output: data.toString() })
+          await writeFile(settingsPath, JSON.stringify(projectData))
+        }
       })
 
       // Log the error
       processRunning[filePath].stderr?.on('data', async (data) => {
         console.log(data.toString())
 
-        const projectData = JSON.parse(
-          await fsPromises.readFile(settingsPath, 'utf-8')
-        ) as projectSettings
+        const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
-        projectData.log.push({ date: new Date().toISOString(), output: data.toString() })
-        fsPromises.writeFile(settingsPath, JSON.stringify(projectData), 'utf-8')
+        if (projectData) {
+          projectData.log.push({ date: new Date().toISOString(), output: data.toString() })
+          await writeFile(settingsPath, JSON.stringify(projectData))
+        }
       })
 
       // Kill the process when it closes
@@ -195,19 +202,17 @@ app.whenReady().then(() => {
       // Try get the project with index
       const project = projects[index]
 
+      // Get the path to the project settings file
+      const settingsPath = join(project.path, 'settings.json')
+
+      // Read the project settings
+      const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+
       // Get the path to the user data directory
       const userDataPath = app.getPath('userData')
 
       // Get the web content
       const webContent = webContents.getFocusedWebContents()
-
-      // Get the path to the project settings file
-      const settingsPath = join(userDataPath, project.path, 'settings.json')
-
-      // Read the project settings
-      const projectData = JSON.parse(
-        await fsPromises.readFile(settingsPath, 'utf-8')
-      ) as projectSettings
 
       // Create the full path to the project file to stop
       const filePath = join(userDataPath, project.path, projectData.file)
@@ -222,8 +227,33 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle('projects:rename', async (_ev, index: number, title: string) => {
+    try {
+      // Get the focused web content
+      const webContent = webContents.getFocusedWebContents()
+
+      // Get projects in config file
+      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+
+      // Try get the project with index
+      const project = projects[index]
+
+      // Change the project title
+      project.title = title
+
+      // Update the projects.json file
+      await writeFile('projects.json', JSON.stringify(projects))
+
+      // Send the update to the renderer process
+      webContent?.send('projects:update')
+    } catch (error) {
+      console.log(error)
+    }
+  })
+
   ipcMain.handle('projects:all', async () => {
     try {
+      // Return the projects in the config file
       const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
       return projects
     } catch (error) {
@@ -231,4 +261,53 @@ app.whenReady().then(() => {
     }
     return []
   })
+
+  ipcMain.handle('projects:settings', async (_ev, index: number) => {
+    try {
+      // Get projects in config file
+      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+
+      // Try get the project with index
+      const project = projects[index]
+
+      // Get the path to the project settings file
+      const settingsPath = join(project.path, 'settings.json')
+
+      // Read the project settings
+      const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+
+      return projectData
+    } catch (error) {
+      console.log(error)
+    }
+    return null
+  })
+
+  ipcMain.handle(
+    'projects:send',
+    async (_ev, index: number, content: string, access_token: string) => {
+      try {
+        console.log(access_token)
+        // Get projects in config file
+        const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+
+        // Try get the project with index
+        const project = projects[index]
+
+        // Get the path to the project settings file
+        const settingsPath = join(project.path, 'settings.json')
+
+        // Read the project settings
+        const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+
+        // Add the new message
+        projectData.messages.push({ role: 'user', content })
+
+        // Update the settings.json file
+        await writeFile(settingsPath, JSON.stringify(projectData))
+      } catch (error) {
+        console.log(error)
+      }
+    }
+  )
 })
