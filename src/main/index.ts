@@ -5,7 +5,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
 // Scripts
-import pythonInstaller, { isPythonInstalled } from './scripts/python'
+import pythonInstaller from './scripts/python'
 import callback_server from './scripts/callback'
 
 // Handles
@@ -53,17 +53,13 @@ app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
-  // Check if Python is installed
-  const hasPython = await isPythonInstalled(join(app.getPath('userData')))
+  // Install Python if not already installed
+  pythonInstaller({
+    appOutDir: join(app.getPath('userData')),
+    electronPlatformName: process.platform,
+    arch: process.arch
+  })
 
-  if (!hasPython) {
-    // Install Python if not already installed
-    pythonInstaller({
-      appOutDir: join(app.getPath('userData')),
-      electronPlatformName: process.platform,
-      arch: process.arch
-    })
-  }
 
   // Handle OAuth server requests
   ipcMain.handle('callback:server', async () => {

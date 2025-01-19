@@ -132,7 +132,7 @@ function Editor(): JSX.Element {
           <a
             role="button"
             onClick={async () => {
-              if (project.isRunning) {
+              if (isRunning) {
                 await ipcRenderer.invoke('projects:stop', index)
                 setIsRunning(false)
               } else {

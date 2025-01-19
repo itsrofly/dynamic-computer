@@ -44,9 +44,9 @@ function Card({ project, index }: { project: Project; index: number }): JSX.Elem
           <div>{project.latestDate}</div>
 
           <button
-            className={`${project.isRunning ? 'btn-danger' : 'btn-primary'} btn shadow border-0 mt-3`}
+            className={`${isRunning ? 'btn-danger' : 'btn-primary'} btn shadow border-0 mt-3`}
             onClick={async () => {
-              if (project.isRunning) {
+              if (isRunning) {
                 await ipcRenderer.invoke('projects:stop', index)
                 setIsRunning(false)
               } else {

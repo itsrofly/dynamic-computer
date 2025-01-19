@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from 'child_process'
+import { ChildProcess, exec } from 'child_process'
 import { app, ipcMain, webContents } from 'electron/main'
 import { join } from 'path'
 
@@ -11,6 +11,7 @@ import {
   deleteFile,
   supabase
 } from '../scripts/helpers'
+import { PlatformHandler } from '../scripts/python'
 
 /**
  * Project Handles
@@ -180,10 +181,14 @@ root.mainloop()`
       // Kill the process if it's running
       processRunning[filePath]?.kill(), (processRunning[filePath] = null)
 
+      // Get platform python information
+      const plataformInfo = PlatformHandler(process.platform)
+
+      // Command to run the python file
+      const command = join(userDataPath, 'python', plataformInfo.exec) + ' ' + filePath
+
       // Start the process, detached so it doesn't close when the app closes, here you should use full paths
-      processRunning[filePath] = spawn(join(userDataPath, 'python', 'bin', 'python'), [filePath], {
-        detached: true
-      })
+      processRunning[filePath] = exec(command, plataformInfo.options)
 
       // Log the output
       processRunning[filePath].stdout?.on('data', async (data) => {
@@ -422,10 +427,18 @@ root.mainloop()`
 
                   // Install the dependencies
                   try {
-                    const runner = spawn(join(app.getPath('userData'), 'python', 'bin', 'pip'), [
-                      'install',
-                      args.pip_requirements
-                    ])
+                    // Get platform python information
+                    const plataformInfo = PlatformHandler(process.platform)
+
+                    // Command to run pip
+                    const command = join(
+                      app.getPath('userData'),
+                      'python',
+                      plataformInfo.exec
+                    ) + ' -m pip install ' + args.pip_requirements
+
+                    // Install the dependencies
+                    const runner = exec(command, plataformInfo.options)
 
                     // Log the output
                     runner.stdout?.on('data', async (data) => {

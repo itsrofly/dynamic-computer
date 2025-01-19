@@ -35,16 +35,42 @@ interface Context {
   arch: Architecture
 }
 
+// Static links for python installation
+export const PlatformHandler = (Platform: Platform) => {
+  switch (Platform) {
+    case 'win32':
+      return {
+        link: 'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+2050106-x86-64-pc-windows-msvc-shared-install_only.zip',
+        exec: join('python.exe'),
+        options: { shell: 'powershell' }
+      }
+    case 'darwin':
+      return {
+        link: 'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+20250106-x86_64-apple-darwin-install_only.tar.gz',
+        exec: join('bin', 'python'),
+        options: { shell: 'shell' }
+      }
+    default:
+      return {
+        link: 'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+20250106-x86_64-unknown-linux-gnu-install_only.tar.gz',
+        exec: join('bin', 'python'),
+        options: { shell: 'shell' }
+      }
+  }
+}
+
 // Promisify exec: Run commands asynchronously
 const execPromise = promisify(exec)
 
-export async function isPythonInstalled(dir: string): Promise<boolean> {
+async function isPythonInstalled(dir: string, plataform: Platform): Promise<boolean> {
+  const plataformInfo = PlatformHandler(plataform)
+
   try {
     // Command to get python version
-    const command = join(dir, 'python', 'bin', 'python --version')
+    const command = join(dir, 'python', plataformInfo.exec) + ' --version'
 
     // Execute the command
-    const { stderr } = await execPromise(command)
+    const { stderr } = await execPromise(command, plataformInfo.options)
 
     // If there is an error, python is not installed
     if (stderr) {
@@ -53,68 +79,68 @@ export async function isPythonInstalled(dir: string): Promise<boolean> {
     }
     return true
   } catch (error) {
+    console.error('Error during python check:', error)
     return false
   }
 }
 
-function unpackPython(url: string, dir: string, terminal: 'ps' | 'sh'): void {
+async function unpackPython(dir: string, plataform: Platform): Promise<void> {
+  // Get the platform information
+  const plataformInfo = PlatformHandler(plataform)
+  // Get the download link
+  const url = plataformInfo.link
   // Paths for the downloaded files
   const tar = join(dir, 'python.tar.gz') // For linux and darwin
   const zip = join(dir, 'python.zip') // For windows
 
   const command =
-    terminal === 'ps'
-      ? `
-  powershell -Command "
-  Invoke-WebRequest -Uri '${url}' -OutFile '${zip}';
-  Expand-Archive -Path '${zip}' -DestinationPath '${dir}';
-  Remove-Item '${zip}' -Force
-  "
-`
-      : `
-  curl -o ${tar} -L ${url} &&
-  tar -xzf ${tar} -C ${dir} &&
-  rm ${tar}
-`
+    plataformInfo.options.shell === 'powershell'
+      ? `Invoke-WebRequest -Uri '${url}' -OutFile '${zip}';
+Expand-Archive -Path '${zip}' -DestinationPath '${dir}';
+Remove-Item '${zip}' -Force`
+      : `curl -o ${tar} -L ${url} &&
+tar -xzf ${tar} -C ${dir} &&
+rm ${tar}`
 
   console.log('Python installation started')
-
   // Execute the command
-  const child = exec(command)
+  const child = exec(command, plataformInfo.options)
 
-  child.on('close', () => {
+  child.stdout?.on('data', async (data) => {
+    console.log(data)
+  })
+
+  child.stderr?.on('data', async (data) => {
+    console.error(data)
+  })
+
+  child.on('close', async () => {
     console.log('Python installation closed')
+
+    // Check if python was installed successfully
+    const isInstalled = await isPythonInstalled(dir, plataform)
+
+    if (isInstalled) {
+      console.log('Python installed successfully')
+    } else {
+      console.error('Python installation failed')
+    }
   })
 }
 
-export default (context: Context): void => {
+export default async (context: Context): Promise<void> => {
   try {
     // Get the app output directory
     const appOutDir = context.appOutDir
     // Get the platform name
     const platform = context.electronPlatformName
 
-    // Python standalone
-    const staticLinks = {
-      win32:
-        'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+2050106-x86-64-pc-windows-msvc-shared-install_only.zip',
-      darwin:
-        'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+20250106-x86_64-apple-darwin-install_only.tar.gz',
-      linux:
-        'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+20250106-x86_64-unknown-linux-gnu-install_only.tar.gz'
-    }
+    // Check if python is already installed
+    const hasPython = await isPythonInstalled(appOutDir, platform)
+    if (hasPython) return
 
-    switch (platform) {
-      case 'win32':
-        unpackPython(staticLinks.win32, appOutDir, 'ps')
-        break
-      case 'darwin':
-        unpackPython(staticLinks.darwin, appOutDir, 'sh')
-        break
-      default:
-        unpackPython(staticLinks.linux, appOutDir, 'sh')
-        break
-    }
+    // Install python
+    await unpackPython(appOutDir, platform)
   } catch (error) {
     console.error('Error during python installation process:', error)
   }
