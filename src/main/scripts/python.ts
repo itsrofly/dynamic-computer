@@ -1,6 +1,7 @@
 import { exec } from 'child_process'
 import { join } from 'path'
 import { promisify } from 'util'
+import { loadingEvents } from '..'
 
 type Architecture =
   | 'arm'
@@ -102,7 +103,10 @@ Remove-Item '${zip}' -Force`
 tar -xzf ${tar} -C ${dir} &&
 rm ${tar}`
 
-  console.log('Python installation started')
+
+  // Emit the event for the installation process
+  loadingEvents.emit('python:installing')
+
   // Execute the command
   const child = exec(command, plataformInfo.options)
 
@@ -121,8 +125,10 @@ rm ${tar}`
     const isInstalled = await isPythonInstalled(dir, plataform)
 
     if (isInstalled) {
+      loadingEvents.emit('python:installed')
       console.log('Python installed successfully')
     } else {
+      loadingEvents.emit('python:failed')
       console.error('Python installation failed')
     }
   })

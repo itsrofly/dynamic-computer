@@ -1,8 +1,6 @@
 // Electron
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
 
 // Scripts
 import pythonInstaller from './scripts/python'
@@ -10,6 +8,17 @@ import callback_server from './scripts/callback'
 
 // Handles
 import './handles/projects'
+
+// Assets
+import icon from '../../resources/icon.png?asset'
+import htmlFile from '../../resources/splashscreen.html?asset'
+
+// Others
+import EventEmitter from 'events'
+import { join } from 'path'
+
+// Create the event emitter for loading events
+export const loadingEvents = new EventEmitter()
 
 function createWindow(): void {
   // Create the browser window.
@@ -26,6 +35,41 @@ function createWindow(): void {
       contextIsolation: true,
       devTools: !app.isPackaged
     }
+  })
+
+  const loadinWindow = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false,
+    show: false,
+    resizable: false,
+    webPreferences: {
+      sandbox: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      devTools: !app.isPackaged
+    }
+  })
+
+  loadingEvents.on('python:installing', () => {
+    // Hide the main window but not close it
+    mainWindow.hide()
+
+    // Load the loading window and show with focus
+    loadinWindow.loadFile(htmlFile), loadinWindow.show(), loadinWindow.focus()
+  })
+
+  loadingEvents.on('python:installed', () => {
+    // Hide the loading window and close it
+    loadinWindow.hide(), loadinWindow.close()
+
+    // Show the main window and move it to the top
+    mainWindow.show(), mainWindow.moveTop()
+  })
+
+  loadingEvents.on('python:failed', () => {
+    // Show error if failed to install python
+    dialog.showErrorBox('Error 1001', 'Failed to install dependencies.\nPlease check your internet connection and try again.')
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -59,7 +103,6 @@ app.whenReady().then(async () => {
     electronPlatformName: process.platform,
     arch: process.arch
   })
-
 
   // Handle OAuth server requests
   ipcMain.handle('callback:server', async () => {
