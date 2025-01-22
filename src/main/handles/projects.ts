@@ -11,7 +11,7 @@ import {
   deleteFile,
   supabase
 } from '../scripts/helpers'
-import { PlatformHandler } from '../scripts/python'
+import { platformHandler } from '../dependencies/python'
 
 /**
  * Project Handles
@@ -182,7 +182,7 @@ root.mainloop()`
       processRunning[filePath]?.kill(), (processRunning[filePath] = null)
 
       // Get platform python information
-      const plataformInfo = PlatformHandler(process.platform)
+      const plataformInfo = platformHandler()
 
       // Command to run the python file
       const command = join(userDataPath, 'python', plataformInfo.exec) + ' ' + filePath
@@ -428,7 +428,7 @@ root.mainloop()`
                   // Install the dependencies
                   try {
                     // Get platform python information
-                    const plataformInfo = PlatformHandler(process.platform)
+                    const plataformInfo = platformHandler()
 
                     // Command to run pip
                     const command = join(

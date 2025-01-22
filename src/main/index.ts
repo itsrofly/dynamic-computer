@@ -1,21 +1,22 @@
 // Electron
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 
 // Scripts
-import pythonInstaller from './scripts/python'
 import callback_server from './scripts/callback'
+import pythonInstaller from './dependencies/python'
 
 // Handles
 import './handles/projects'
 
 // Assets
 import icon from '../../resources/icon.png?asset'
-import htmlFile from '../../resources/splashscreen.html?asset'
+import splashScreen from '../../resources/splashscreen.html?asset'
 
 // Others
 import EventEmitter from 'events'
 import { join } from 'path'
+import { isPythonInstalled } from './dependencies/python'
 
 // Create the event emitter for loading events
 export const loadingEvents = new EventEmitter()
@@ -44,50 +45,55 @@ function createWindow(): void {
     show: false,
     resizable: false,
     webPreferences: {
-      sandbox: true,
+      preload:  join(__dirname, '../preload/index.js'),
+      sandbox: false,
       nodeIntegration: false,
       contextIsolation: true,
       devTools: !app.isPackaged
     }
   })
 
-  loadingEvents.on('python:installing', () => {
-    // Hide the main window but not close it
-    mainWindow.hide()
+  // Load the splash screen
+  loadinWindow.loadFile(splashScreen)
 
-    // Load the loading window and show with focus
-    loadinWindow.loadFile(htmlFile), loadinWindow.show(), loadinWindow.focus()
+  loadinWindow.on('ready-to-show', async () => {
+    // Here we are going to manage the dependencies
+    // For now the only dependency is python
+
+    // Check if python is installed
+    const hasPython = await isPythonInstalled()
+    if (!hasPython) {
+      // Show the loading window
+      loadinWindow.show()
+      // Install python
+      pythonInstaller()
+    } else {
+      loadingEvents.emit('dependencies:installed')
+    }
   })
 
-  loadingEvents.on('python:installed', () => {
-    // Hide the loading window and close it
-    loadinWindow.hide(), loadinWindow.close()
+  loadingEvents.on('dependencies:installed', () => {
+    // Close the loading window
+    loadinWindow.close()
 
-    // Show the main window and move it to the top
-    mainWindow.show(), mainWindow.moveTop()
+    // Load the main window
+    mainWindow.on('ready-to-show', async () => {
+      mainWindow.show()
+    })
+
+    mainWindow.webContents.setWindowOpenHandler((details) => {
+      shell.openExternal(details.url)
+      return { action: 'deny' }
+    })
+
+    // HMR for renderer base on electron-vite cli.
+    // Load the remote URL for development or the local html file for production.
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    } else {
+      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    }
   })
-
-  loadingEvents.on('python:failed', () => {
-    // Show error if failed to install python
-    dialog.showErrorBox('Error 1001', 'Failed to install dependencies.\nPlease check your internet connection and try again.')
-  })
-
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
 }
 
 // This method will be called when Electron has finished
@@ -95,14 +101,7 @@ function createWindow(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
-
-  // Install Python if not already installed
-  pythonInstaller({
-    appOutDir: join(app.getPath('userData')),
-    electronPlatformName: process.platform,
-    arch: process.arch
-  })
+  electronApp.setAppUserModelId('dynamic.computer')
 
   // Handle OAuth server requests
   ipcMain.handle('callback:server', async () => {

@@ -1,0 +1,26 @@
+// electron.vite.config.ts
+import { resolve } from "path";
+import { bytecodePlugin, defineConfig, externalizeDepsPlugin } from "electron-vite";
+import react from "@vitejs/plugin-react";
+var electron_vite_config_default = defineConfig({
+  main: {
+    plugins: [externalizeDepsPlugin(), bytecodePlugin()]
+  },
+  preload: {
+    plugins: [externalizeDepsPlugin(), react(), bytecodePlugin()],
+    build: {
+      assetsDir: resolve("src/preload/splashscreen")
+    }
+  },
+  renderer: {
+    resolve: {
+      alias: {
+        "@renderer": resolve("src/renderer")
+      }
+    },
+    plugins: [react()]
+  }
+});
+export {
+  electron_vite_config_default as default
+};
