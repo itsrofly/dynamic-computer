@@ -114,7 +114,7 @@ export default async (): Promise<void> => {
         // Command to extract python
         const command =
           platformOp.options.shell === 'powershell'
-            ? `Expand-Archive -Path '${targetPath}' -DestinationPath '${dir}'; Remove-Item '${targetPath}' -Force`
+            ? `Add-Type -Assembly "System.IO.Compression.Filesystem"; [System.IO.Compression.ZipFile]::ExtractToDirectory("${targetPath}", "${dir}"); Remove-Item "${targetPath}" -Force`
             : `tar -xzf ${targetPath} -C ${dir} && rm ${targetPath}`
 
         // Execute the command
