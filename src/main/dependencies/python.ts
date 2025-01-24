@@ -20,21 +20,21 @@ export const platformHandler = (): pythonOptions => {
   switch (platform) {
     case 'win32':
       return {
-        link: 'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+2050106-x86-64-pc-windows-msvc-shared-install_only.zip',
+        link:  import.meta.env.MAIN_VITE_SUPABASE_URL + '/storage/v1/object/public/dependencies/cpython-windows.zip',
         extension: '.zip',
         exec: join('python.exe'),
         options: { shell: 'powershell' }
       }
     case 'darwin':
       return {
-        link: 'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+20250106-x86_64-apple-darwin-install_only.tar.gz',
+        link: import.meta.env.MAIN_VITE_SUPABASE_URL + '/storage/v1/object/public/dependencies/cpython-darwin.tar.gz',
         extension: '.tar.gz',
         exec: join('bin', 'python'),
         options: { shell: 'shell' }
       }
     default:
       return {
-        link: 'https://github.com/dynamic-computer/python-build-standalone/releases/download/1.0.0/cpython-3.11.11+20250106-x86_64-unknown-linux-gnu-install_only.tar.gz',
+        link: import.meta.env.MAIN_VITE_SUPABASE_URL + '/storage/v1/object/public/dependencies/cpython-linux.tar.gz',
         extension: '.tar.gz',
         exec: join('bin', 'python'),
         options: { shell: 'shell' }
