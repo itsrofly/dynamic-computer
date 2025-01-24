@@ -1,5 +1,5 @@
 import { app } from 'electron/main'
-import { existsSync, promises as fsPromises } from 'fs'
+import { existsSync, promises as fsPromises, Mode, ObjectEncodingOptions, OpenMode } from 'fs'
 import { join, parse } from 'path'
 import git from 'isomorphic-git'
 import { createClient } from '@supabase/supabase-js'
@@ -30,7 +30,11 @@ export const readFile = async (file: string): Promise<string | null> => {
   return null
 }
 
-export const writeFile = async (file: string, content = ''): Promise<void> => {
+export const writeFile = async (file: string, content = '', options?: (ObjectEncodingOptions & {
+  mode?: Mode | undefined,
+  flag?: OpenMode | undefined,
+  flush?: boolean | undefined,
+}) ): Promise<void> => {
   // Get the path to the user data directory
   const userDataPath = app.getPath('userData')
 
@@ -44,7 +48,7 @@ export const writeFile = async (file: string, content = ''): Promise<void> => {
   await fsPromises.mkdir(filePath.replace(parsedPath.base, ''), { recursive: true })
 
   // Write file
-  fsPromises.writeFile(filePath, content, 'utf-8')
+  fsPromises.writeFile(filePath, content, options)
 }
 
 export const deleteFile = async (file: string): Promise<void> => {

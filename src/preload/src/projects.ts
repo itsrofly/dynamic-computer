@@ -8,7 +8,6 @@ export interface ProjectSettings {
   messages: Chat[]
   commits: { date: string; message: string }[]
   dependencies: string
-  log: { date: string; output: string }[]
 }
 
 export interface Project {

@@ -28,7 +28,6 @@ interface ProjectSettings {
   messages: Chat[]
   commits: { date: string; message: string }[]
   dependencies: string
-  log: { date: string; output: string }[]
 }
 
 interface Project {
@@ -40,7 +39,7 @@ interface Project {
 interface ToolCallEditFile {
   file_content: string
   commit_message: string
-  pip_requirements: string
+  pip_requirements: string[]
 }
 
 app.whenReady().then(() => {
@@ -92,8 +91,7 @@ root.mainloop()`
           }
         ],
         commits: [{ date: formattedDate, message: 'Create Project' }],
-        dependencies: '',
-        log: []
+        dependencies: ''
       }
 
       // Create gitignore file
@@ -107,6 +105,9 @@ root.mainloop()`
 
       // Create settings.json file
       await writeFile(join(projectFolder, 'settings.json'), JSON.stringify(settings))
+
+      // Create logfile file
+      await writeFile(join(projectFolder, 'logfile'), '')
 
       // Initialize git
       await gitInit(projectFolder)
@@ -172,6 +173,9 @@ root.mainloop()`
       // Get the path to the project settings file
       const settingsPath = join(project.path, 'settings.json')
 
+      // Get the path to the log file
+      const logPath = join(project.path, 'logfile')
+
       // Read the project settings
       const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
@@ -193,25 +197,27 @@ root.mainloop()`
       // Log the output
       processRunning[filePath].stdout?.on('data', async (data) => {
         console.log(data.toString())
-        const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
-        if (projectData) {
-          // Don't let the string escape and brake the JSON
-          projectData.log.push({ date: new Date().toISOString(), output: JSON.stringify(data) })
-          await writeFile(settingsPath, JSON.stringify(projectData))
-        }
+        // Data, everything in a single line, remove all break lines
+        const dataString = data.toString().replace(/\n/g, '') + '\n'
+
+        // Append the output to the log file
+        await writeFile(logPath, new Date().toISOString() + ':' + dataString, {
+          flag: 'a'
+        })
       })
 
       // Log the error
       processRunning[filePath].stderr?.on('data', async (data) => {
         console.log(data.toString())
 
-        const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+        // Data, everything in a single line, remove all break lines
+        const dataString = data.toString().replace(/\n/g, '') + '\n'
 
-        if (projectData) {
-          projectData.log.push({ date: new Date().toISOString(), output: JSON.stringify(data) })
-          await writeFile(settingsPath, JSON.stringify(projectData))
-        }
+        // Append the output to the log file
+        await writeFile(logPath, new Date().toISOString() + ':' + dataString, {
+          flag: 'a'
+        })
       })
 
       // Kill the process when it closes
@@ -328,6 +334,9 @@ root.mainloop()`
         // Get the path to the project settings file
         const settingsPath = join(project.path, 'settings.json')
 
+        // Get the path to the log file
+        const logPath = join(project.path, 'logfile')
+
         // Read the project settings
         const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
@@ -413,8 +422,16 @@ root.mainloop()`
                   // Update the file content
                   await writeFile(join(project.path, projectData.file), args.file_content)
 
+                  // Unnecessary requirements
+                  const unnecessary = ['tkinter']
+
+                  // Remove the unnecessary requirements
+                  args.pip_requirements = args.pip_requirements.filter(
+                    (requirement) => !unnecessary.includes(requirement)
+                  )
+
                   // Update the dependencies
-                  projectData.dependencies = args.pip_requirements
+                  projectData.dependencies = args.pip_requirements.join(' ')
 
                   // Update the commits
                   projectData.commits.push({
@@ -431,11 +448,10 @@ root.mainloop()`
                     const plataformInfo = platformHandler()
 
                     // Command to run pip
-                    const command = join(
-                      app.getPath('userData'),
-                      'python',
-                      plataformInfo.exec
-                    ) + ' -m pip install ' + args.pip_requirements
+                    const command =
+                      join(app.getPath('userData'), 'python', plataformInfo.exec) +
+                      ' -m pip install ' +
+                      args.pip_requirements.join(' ')
 
                     // Install the dependencies
                     const runner = exec(command, plataformInfo.options)
@@ -443,12 +459,31 @@ root.mainloop()`
                     // Log the output
                     runner.stdout?.on('data', async (data) => {
                       console.log(data.toString())
+
+                      // Data, everything in a single line, remove all break lines
+                      const dataString = data.toString().replace(/\n/g, '') + '\n'
+
+                      // Append the output to the log file
+                      await writeFile(logPath, new Date().toISOString() + ':' + dataString, {
+                        flag: 'a'
+                      })
                     })
 
                     // Log the error
                     runner.stderr?.on('data', async (data) => {
                       console.log(data.toString())
+
+                      // Data, everything in a single line, remove all break lines
+                      const dataString = data.toString().replace(/\n/g, '') + '\n'
+
+                      // Append the output to the log file
+                      await writeFile(logPath, new Date().toISOString() + ':' + dataString, {
+                        flag: 'a'
+                      })
                     })
+
+                    // Update the settings.json file
+                    await writeFile(settingsPath, JSON.stringify(projectData))
                   } catch (error) {
                     projectData.messages.push({
                       role: 'assistant',
