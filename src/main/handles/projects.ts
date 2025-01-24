@@ -55,6 +55,27 @@ app.whenReady().then(() => {
     'Hey! How can I assist you today?'
   ]
 
+  // Filter script to run python code and get the important output
+  const filterScript = `
+import subprocess
+import sys
+
+def run_script(script_path):
+    try:
+        result = subprocess.run([sys.executable, script_path], check=True, capture_output=True, text=True)
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        error_message = e.stderr.strip().split(\\"\\n\\")[-1]
+        print(error_message)
+
+if __name__ == \\"__main__\\":
+    if len(sys.argv) != 2:
+        sys.exit(1)
+    script_path = sys.argv[1]
+    run_script(script_path)
+`
+
+  // Default file content
   const defaultFile = `import tkinter as tk
 # Always change the title of the application to one more related to what the user wants.
 appTitle = 'Hello World!'
@@ -189,7 +210,7 @@ root.mainloop()`
       const plataformInfo = platformHandler()
 
       // Command to run the python file
-      const command = join(userDataPath, 'python', plataformInfo.exec) + ' ' + filePath
+      const command = `${join(userDataPath, 'python', plataformInfo.exec)} -c '${filterScript}' ${filePath}`
 
       // Start the process, detached so it doesn't close when the app closes, here you should use full paths
       processRunning[filePath] = exec(command, plataformInfo.options)
@@ -199,10 +220,10 @@ root.mainloop()`
         console.log(data.toString())
 
         // Data, everything in a single line, remove all break lines
-        const dataString = data.toString().replace(/\n/g, '') + '\n'
+        const dataString = data.toString().trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
 
         // Append the output to the log file
-        await writeFile(logPath, new Date().toISOString() + ':' + dataString, {
+        await writeFile(logPath, dataString, {
           flag: 'a'
         })
       })
@@ -212,10 +233,10 @@ root.mainloop()`
         console.log(data.toString())
 
         // Data, everything in a single line, remove all break lines
-        const dataString = data.toString().replace(/\n/g, '') + '\n'
+        const dataString = data.toString().trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
 
         // Append the output to the log file
-        await writeFile(logPath, new Date().toISOString() + ':' + dataString, {
+        await writeFile(logPath, dataString, {
           flag: 'a'
         })
       })
@@ -461,10 +482,11 @@ root.mainloop()`
                       console.log(data.toString())
 
                       // Data, everything in a single line, remove all break lines
-                      const dataString = data.toString().replace(/\n/g, '') + '\n'
+                      const dataString =
+                        data.toString().trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
 
                       // Append the output to the log file
-                      await writeFile(logPath, new Date().toISOString() + ':' + dataString, {
+                      await writeFile(logPath, dataString, {
                         flag: 'a'
                       })
                     })
@@ -474,10 +496,11 @@ root.mainloop()`
                       console.log(data.toString())
 
                       // Data, everything in a single line, remove all break lines
-                      const dataString = data.toString().replace(/\n/g, '') + '\n'
+                      const dataString =
+                        data.toString().trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
 
                       // Append the output to the log file
-                      await writeFile(logPath, new Date().toISOString() + ':' + dataString, {
+                      await writeFile(logPath, dataString, {
                         flag: 'a'
                       })
                     })
