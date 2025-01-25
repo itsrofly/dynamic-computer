@@ -15,9 +15,6 @@ function Editor(): JSX.Element {
   // Get the search params to get the index of the project
   const searchParams = useSearchParams()
 
-  // State to store the project data
-  const [projectData, setProjectData] = useState<ProjectSettings | null>()
-
   // Get the projects from the context
   const Projects = useContext(ProjectsContext)
 
@@ -28,7 +25,7 @@ function Editor(): JSX.Element {
   const [isRunning, setIsRunning] = useState(false)
 
   // State to show all messages, including loading and info types
-  const [allMessages, setAllMessages] = useState<Chat[]>([])
+  const [messages, setMessages] = useState<Chat[]>([])
 
   // Get the navigate function to navigate to the home page
   const navigate = useNavigate()
@@ -67,8 +64,8 @@ function Editor(): JSX.Element {
     const message = currentTarget.value
     if (message) {
       // Set the loading feedback
-      setAllMessages([
-        ...allMessages,
+      setMessages([
+        ...messages,
         { role: 'user', content: message },
         { role: 'loading', content: '...' }
       ])
@@ -102,15 +99,14 @@ function Editor(): JSX.Element {
   // Get the project settings/data, when the page is refreshed/loaded
   useEffect(() => {
     const getProject = async (): Promise<void> => {
-      const projectData = (await ipcRenderer.invoke('projects:settings', index)) as ProjectSettings
-      setProjectData(projectData)
+      const projectSettings = (await ipcRenderer.invoke('projects:settings', index)) as ProjectSettings
 
       // Set all messages
-      setAllMessages([
-        ...projectData.messages,
+      setMessages([
+        ...projectSettings.messages,
         {
           role: 'info',
-          content: `Changes: ${projectData.commits.length} | Latest Change: ${projectData.commits[projectData.commits.length - 1].message}`
+          content: `Changes: ${projectSettings.commits.length} | Latest Change: ${projectSettings.commits[projectSettings.commits.length - 1].message}`
         }
       ])
     }
@@ -231,7 +227,7 @@ function Editor(): JSX.Element {
         </div>
 
         <div className="container w-100 h-100 mt-5 overflow-y-auto">
-          {allMessages.map((message, index) => {
+          {messages.map((message, index) => {
             if (message.role === 'user') {
               return (
                 <div key={index} className="w-100 d-flex justify-content-end pt-5">

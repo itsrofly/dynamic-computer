@@ -198,10 +198,10 @@ root.mainloop()`
       const logPath = join(project.path, 'logfile')
 
       // Read the project settings
-      const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+      const projectSettings = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
       // Create the full path to the project file to run
-      const filePath = join(userDataPath, project.path, projectData.file)
+      const filePath = join(userDataPath, project.path, projectSettings.file)
 
       // Kill the process if it's running
       processRunning[filePath]?.kill(), (processRunning[filePath] = null)
@@ -211,8 +211,8 @@ root.mainloop()`
 
       // Command to install dependencies
       const installDep =
-        projectData.dependencies.length > 0
-          ? `${join(userDataPath, 'python', plataformInfo.exec)} -m pip install ${projectData.dependencies};`
+        projectSettings.dependencies.length > 0
+          ? `${join(userDataPath, 'python', plataformInfo.exec)} -m pip install ${projectSettings.dependencies};`
           : ''
 
       // Command to run the python file after install the dependencies
@@ -271,7 +271,7 @@ root.mainloop()`
       const settingsPath = join(project.path, 'settings.json')
 
       // Read the project settings
-      const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+      const projectSettings = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
       // Get the path to the user data directory
       const userDataPath = app.getPath('userData')
@@ -280,7 +280,7 @@ root.mainloop()`
       const webContent = webContents.getFocusedWebContents()
 
       // Create the full path to the project file to stop
-      const filePath = join(userDataPath, project.path, projectData.file)
+      const filePath = join(userDataPath, project.path, projectSettings.file)
 
       // Kill the process if it's running
       processRunning[filePath]?.kill(), (processRunning[filePath] = null)
@@ -339,9 +339,9 @@ root.mainloop()`
       const settingsPath = join(project.path, 'settings.json')
 
       // Read the project settings
-      const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+      const projectSettings = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
-      return projectData
+      return projectSettings
     } catch (error) {
       console.log(error)
     }
@@ -362,16 +362,16 @@ root.mainloop()`
         const settingsPath = join(project.path, 'settings.json')
 
         // Read the project settings
-        const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+        const projectSettings = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
         // Add the new message
-        projectData.messages.push({ role: 'user', content })
+        projectSettings.messages.push({ role: 'user', content })
 
         // Copy of messages
-        const messages = [...projectData.messages]
+        const messages = [...projectSettings.messages]
 
         // Read my file
-        const fileContent = await readFile(join(project.path, projectData.file))
+        const fileContent = await readFile(join(project.path, projectSettings.file))
 
         // Add context of the main file
         messages.push({
@@ -396,26 +396,26 @@ root.mainloop()`
           if (response.error.context && response.error.context.status) {
             switch (response.error.context.status) {
               case 401:
-                projectData.messages.push({
+                projectSettings.messages.push({
                   role: 'assistant',
                   content: `Something went wrong, please make sure you're logged in!`
                 })
                 break
               case 402:
-                projectData.messages.push({
+                projectSettings.messages.push({
                   role: 'assistant',
                   content: `Something went wrong, please make sure you have a valid subscription!`
                 })
                 break
               default:
-                projectData.messages.push({
+                projectSettings.messages.push({
                   role: 'assistant',
                   content: `Something went wrong, please try again later!`
                 })
                 break
             }
           } else {
-            projectData.messages.push({
+            projectSettings.messages.push({
               role: 'assistant',
               content: `Something went wrong, please try again later!`
             })
@@ -430,13 +430,13 @@ root.mainloop()`
           const message = choice.message
 
           if (message.content)
-            projectData.messages.push({ role: 'assistant', content: message.content })
+            projectSettings.messages.push({ role: 'assistant', content: message.content })
           if (message.tool_calls) {
             // Handle the tool calls
             const toolCallPromises = message.tool_calls.map(
               async (tool_call: { function: { name: string; arguments: string } }) => {
                 if (tool_call.function.name !== 'edit_main_file') {
-                  projectData.messages.push({
+                  projectSettings.messages.push({
                     role: 'assistant',
                     content: 'Unrecognized Operation!'
                   })
@@ -445,7 +445,7 @@ root.mainloop()`
                   const args: ToolCallEditFile = JSON.parse(tool_call.function.arguments)
 
                   // Update the file content
-                  await writeFile(join(project.path, projectData.file), args.file_content)
+                  await writeFile(join(project.path, projectSettings.file), args.file_content)
 
                   // Unnecessary requirements
                   const unnecessary = ['tkinter']
@@ -456,10 +456,10 @@ root.mainloop()`
                   )
 
                   // Update the dependencies
-                  projectData.dependencies = args.pip_requirements.join(' ')
+                  projectSettings.dependencies = args.pip_requirements.join(' ')
 
                   // Update the commits
-                  projectData.commits.push({
+                  projectSettings.commits.push({
                     date: new Date().toISOString(),
                     message: args.commit_message
                   })
@@ -475,14 +475,14 @@ root.mainloop()`
           }
         }
         // Update the settings.json file
-        await writeFile(settingsPath, JSON.stringify(projectData))
+        await writeFile(settingsPath, JSON.stringify(projectSettings))
 
         // Rename the project if as default name
         if (project.title == 'New Project') {
           // Get the focused web content
           const webContent = webContents.getFocusedWebContents()
 
-          project.title = projectData.commits[projectData.commits.length - 1].message
+          project.title = projectSettings.commits[projectSettings.commits.length - 1].message
           await writeFile('projects.json', JSON.stringify(projects))
 
           // Send the update to the renderer process
