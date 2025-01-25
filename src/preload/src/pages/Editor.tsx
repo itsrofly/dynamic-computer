@@ -106,7 +106,7 @@ function Editor(): JSX.Element {
         ...projectSettings.messages,
         {
           role: 'info',
-          content: `Changes: ${projectSettings.commits.length} | Latest Change: ${projectSettings.commits[projectSettings.commits.length - 1].message}`
+          content: `Changes: ${projectSettings.commits.length - 1} | Latest Change: ${projectSettings.commits[projectSettings.commits.length - 1].message}`
         }
       ])
     }
