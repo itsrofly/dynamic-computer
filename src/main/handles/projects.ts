@@ -209,8 +209,14 @@ root.mainloop()`
       // Get platform python information
       const plataformInfo = platformHandler()
 
-      // Command to run the python file
-      const command = `${join(userDataPath, 'python', plataformInfo.exec)} -c '${filterScript}' ${filePath}`
+      // Command to install dependencies
+      const installDep =
+        projectData.dependencies.length > 0
+          ? `${join(userDataPath, 'python', plataformInfo.exec)} -m pip install ${projectData.dependencies};`
+          : ''
+
+      // Command to run the python file after install the dependencies
+      const command = `${installDep} ${join(userDataPath, 'python', plataformInfo.exec)} -c '${filterScript}' ${filePath}`
 
       // Start the process, detached so it doesn't close when the app closes, here you should use full paths
       processRunning[filePath] = exec(command, plataformInfo.options)
@@ -355,9 +361,6 @@ root.mainloop()`
         // Get the path to the project settings file
         const settingsPath = join(project.path, 'settings.json')
 
-        // Get the path to the log file
-        const logPath = join(project.path, 'logfile')
-
         // Read the project settings
         const projectData = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
@@ -429,7 +432,8 @@ root.mainloop()`
           if (message.content)
             projectData.messages.push({ role: 'assistant', content: message.content })
           if (message.tool_calls) {
-            message.tool_calls.forEach(
+            // Handle the tool calls
+            const toolCallPromises = message.tool_calls.map(
               async (tool_call: { function: { name: string; arguments: string } }) => {
                 if (tool_call.function.name !== 'edit_main_file') {
                   projectData.messages.push({
@@ -462,60 +466,12 @@ root.mainloop()`
 
                   // Commit the changes
                   await gitCommit(project.path, args.commit_message)
-
-                  // Install the dependencies
-                  try {
-                    // Get platform python information
-                    const plataformInfo = platformHandler()
-
-                    // Command to run pip
-                    const command =
-                      join(app.getPath('userData'), 'python', plataformInfo.exec) +
-                      ' -m pip install ' +
-                      args.pip_requirements.join(' ')
-
-                    // Install the dependencies
-                    const runner = exec(command, plataformInfo.options)
-
-                    // Log the output
-                    runner.stdout?.on('data', async (data) => {
-                      console.log(data.toString())
-
-                      // Data, everything in a single line, remove all break lines
-                      const dataString =
-                        data.toString().trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
-
-                      // Append the output to the log file
-                      await writeFile(logPath, dataString, {
-                        flag: 'a'
-                      })
-                    })
-
-                    // Log the error
-                    runner.stderr?.on('data', async (data) => {
-                      console.log(data.toString())
-
-                      // Data, everything in a single line, remove all break lines
-                      const dataString =
-                        data.toString().trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
-
-                      // Append the output to the log file
-                      await writeFile(logPath, dataString, {
-                        flag: 'a'
-                      })
-                    })
-
-                    // Update the settings.json file
-                    await writeFile(settingsPath, JSON.stringify(projectData))
-                  } catch (error) {
-                    projectData.messages.push({
-                      role: 'assistant',
-                      content: `Something went wrong, dependencies have not been installed!`
-                    })
-                  }
                 }
               }
             )
+
+            // Wait for all tool call promises to resolve
+            await Promise.all(toolCallPromises)
           }
         }
         // Update the settings.json file

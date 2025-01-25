@@ -27,8 +27,8 @@ function Editor(): JSX.Element {
   // State to show if the project is running
   const [isRunning, setIsRunning] = useState(false)
 
-  // State to show loading feedback
-  const [loadingMessages, setLoadingMessages] = useState<Chat[]>([])
+  // State to show all messages, including loading and info types
+  const [allMessages, setAllMessages] = useState<Chat[]>([])
 
   // Get the navigate function to navigate to the home page
   const navigate = useNavigate()
@@ -67,9 +67,10 @@ function Editor(): JSX.Element {
     const message = currentTarget.value
     if (message) {
       // Set the loading feedback
-      setLoadingMessages([
+      setAllMessages([
+        ...allMessages,
         { role: 'user', content: message },
-        { role: 'assistant', content: '...' }
+        { role: 'loading', content: '...' }
       ])
 
       // Clear the textarea
@@ -101,8 +102,17 @@ function Editor(): JSX.Element {
   // Get the project settings/data, when the page is refreshed/loaded
   useEffect(() => {
     const getProject = async (): Promise<void> => {
-      setProjectData(await ipcRenderer.invoke('projects:settings', index))
-      setLoadingMessages([])
+      const projectData = (await ipcRenderer.invoke('projects:settings', index)) as ProjectSettings
+      setProjectData(projectData)
+
+      // Set all messages
+      setAllMessages([
+        ...projectData.messages,
+        {
+          role: 'info',
+          content: `Changes: ${projectData.commits.length} | Latest Change: ${projectData.commits[projectData.commits.length - 1].message}`
+        }
+      ])
     }
     getProject()
   }, [refreshPage])
@@ -221,27 +231,21 @@ function Editor(): JSX.Element {
         </div>
 
         <div className="container w-100 h-100 mt-5 overflow-y-auto">
-          {projectData?.messages.map((message, index) => {
+          {allMessages.map((message, index) => {
             if (message.role === 'user') {
               return (
                 <div key={index} className="w-100 d-flex justify-content-end pt-5">
                   <MessageCard message={message.content} />
                 </div>
               )
-            } else {
+            } else if (message.role === 'info') {
               return (
-                <div key={index} className="w-100 d-flex justify-content-start pt-5">
+                <div
+                  key={index}
+                  className="w-100 d-flex justify-content-center pt-5"
+                  style={{ color: '#0d6efd' }}
+                >
                   <span>{message.content}</span>
-                </div>
-              )
-            }
-          })}
-
-          {loadingMessages.map((message, index) => {
-            if (message.role === 'user') {
-              return (
-                <div key={index} className="w-100 d-flex justify-content-end pt-5">
-                  <MessageCard message={message.content} />
                 </div>
               )
             } else {

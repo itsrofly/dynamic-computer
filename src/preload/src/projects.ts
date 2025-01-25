@@ -1,7 +1,10 @@
+/**
+ * Loading and info should never be sent to the server
+ */
 export interface Chat {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'loading' | 'info' 
   content: string
-}
+} 
 
 export interface ProjectSettings {
   file: string
