@@ -476,6 +476,18 @@ root.mainloop()`
         }
         // Update the settings.json file
         await writeFile(settingsPath, JSON.stringify(projectData))
+
+        // Rename the project if as default name
+        if (project.title == 'New Project') {
+          // Get the focused web content
+          const webContent = webContents.getFocusedWebContents()
+
+          project.title = projectData.commits[projectData.commits.length - 1].message
+          await writeFile('projects.json', JSON.stringify(projects))
+
+          // Send the update to the renderer process
+          webContent?.send('projects:update')
+        }
       } catch (error) {
         console.log(error)
       }
