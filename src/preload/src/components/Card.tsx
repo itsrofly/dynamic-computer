@@ -1,16 +1,13 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom'
 import { Project } from '../App'
 import { ipcRenderer } from 'electron'
-import { useState } from 'react'
+
 
 function Card({ project, index }: { project: Project; index: number }): JSX.Element {
+  // State to disable run button
   const [isRunning, setIsRunning] = useState(false)
 
-  ipcRenderer.once('projects:stopped', (_event, i) => {
-    if (i === index) {
-      setIsRunning(false)
-    }
-  })
   return (
     <>
       <div>
@@ -44,19 +41,16 @@ function Card({ project, index }: { project: Project; index: number }): JSX.Elem
           <div>{project.latestDate}</div>
 
           <button
-            className={`${isRunning ? 'btn-danger' : 'btn-primary'} btn shadow border-0 mt-3`}
+            className={`btn-primary btn shadow border-0 mt-3`}
             onClick={async () => {
-              if (isRunning) {
-                await ipcRenderer.invoke('projects:stop', index)
-                setIsRunning(false)
-              } else {
-                setIsRunning(true)
-                await ipcRenderer.invoke('projects:start', index)
-              }
+              setIsRunning(true)
+              await ipcRenderer.invoke('projects:start', index)
+              setIsRunning(false)
             }}
             style={{ width: '150px' }}
+            disabled={isRunning}
           >
-            {isRunning ? 'Stop' : 'Run'}
+            Run
           </button>
         </div>
       </div>

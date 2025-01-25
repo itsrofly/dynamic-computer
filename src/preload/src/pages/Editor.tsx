@@ -137,11 +137,9 @@ function Editor(): JSX.Element {
         <div className="mt-5">
           <a
             role="button"
+            style={{cursor: isRunning ? 'default' : 'pointer'}}
             onClick={async () => {
-              if (isRunning) {
-                await ipcRenderer.invoke('projects:stop', index)
-                setIsRunning(false)
-              } else {
+              if (!isRunning) {
                 setIsRunning(true)
                 await ipcRenderer.invoke('projects:start', index)
               }
