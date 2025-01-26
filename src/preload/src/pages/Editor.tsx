@@ -24,6 +24,9 @@ function Editor(): JSX.Element {
   // State to show if the project is running
   const [isRunning, setIsRunning] = useState(false)
 
+  // State to check if is sending a message
+  const [isSending, setIsSending] = useState(false)
+
   // State to show all messages, including loading and info types
   const [messages, setMessages] = useState<Chat[]>([])
 
@@ -45,10 +48,10 @@ function Editor(): JSX.Element {
   // If the project is undefined, return a 404 page
   if (project == undefined) return <NotFound />
 
-  // Listen for the project to stop
-  ipcRenderer.once('projects:stopped', (_event, i) => {
+  // Send log messages to the the user, add temporay to the chat (only user will see it)
+  ipcRenderer.once('projects:log', (_event, i, log) => {
     if (i === index) {
-      setIsRunning(false)
+      setMessages([...messages, { role: 'warning', content: log }])
     }
   })
 
@@ -60,15 +63,14 @@ function Editor(): JSX.Element {
 
   // Function to send a message
   const sendMessage = async (currentTarget: HTMLTextAreaElement): Promise<void> => {
+    // Set the sending feedback
+    setIsSending(true)
+
     // Send message
     const message = currentTarget.value
     if (message) {
       // Set the loading feedback
-      setMessages([
-        ...messages,
-        { role: 'user', content: message },
-        { role: 'loading', content: '...' }
-      ])
+      setMessages([...messages, { role: 'user', content: message }])
 
       // Clear the textarea
       currentTarget.value = ''
@@ -82,6 +84,7 @@ function Editor(): JSX.Element {
 
       // Send the message to the assistant
       await ipcRenderer.invoke('projects:send', index, message, accessToken)
+      setIsSending(false)
       setRefreshPage(!refreshPage)
     }
   }
@@ -99,7 +102,10 @@ function Editor(): JSX.Element {
   // Get the project settings/data, when the page is refreshed/loaded
   useEffect(() => {
     const getProject = async (): Promise<void> => {
-      const projectSettings = (await ipcRenderer.invoke('projects:settings', index)) as ProjectSettings
+      const projectSettings = (await ipcRenderer.invoke(
+        'projects:settings',
+        index
+      )) as ProjectSettings
 
       // Set all messages
       setMessages([
@@ -115,10 +121,12 @@ function Editor(): JSX.Element {
 
   return (
     <>
+      {/* Sidebar */}
       <div
         className="h-100 rounded-end shadow container text-center pt-5"
         style={{ width: '90px', float: 'left', backgroundColor: 'white' }}
       >
+        {/* Back button */}
         <div>
           <Link to="/">
             <svg
@@ -134,14 +142,19 @@ function Editor(): JSX.Element {
           </Link>
         </div>
 
+        {/* Start/Stop button */}
         <div className="mt-5">
           <a
             role="button"
-            style={{cursor: isRunning ? 'default' : 'pointer'}}
+            style={{ cursor: isRunning || isSending ? 'default' : 'pointer' }}
             onClick={async () => {
-              if (!isRunning) {
+              if (!isRunning && !isSending) {
+                // Set the running feedback
                 setIsRunning(true)
+                // Wait for the project to start and stop
                 await ipcRenderer.invoke('projects:start', index)
+                // Remove the running feedback
+                setIsRunning(false)
               }
             }}
           >
@@ -169,10 +182,36 @@ function Editor(): JSX.Element {
           </a>
         </div>
 
+        {/* Export/Download button */}
+        <div className="mt-5">
+          <a
+            role="button"
+            style={{ cursor: isSending ? 'default' : 'pointer' }}
+            onClick={async () => {
+              if (!isSending) {
+                // Wait for the download/export to finish
+                await ipcRenderer.invoke('projects:export', index)
+              }
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="36px"
+              viewBox="0 -960 960 960"
+              width="36px"
+              fill="#198754"
+            >
+              <path d="M400-80 0-480l400-400 71 71-329 329 329 329-71 71Z" />
+            </svg>
+          </a>
+        </div>
+
+        {/* Delete button */}
         <div className="mt-5">
           <a
             role="button"
             onClick={async () => {
+              // Wait for the project to be deleted
               await ipcRenderer.invoke('projects:delete', index)
               navigate('/')
             }}
@@ -189,10 +228,13 @@ function Editor(): JSX.Element {
           </a>
         </div>
       </div>
+
+      {/* Main content */}
       <div
         className="d-flex flex-column h-100 text-white text-center pt-2"
         style={{ float: 'none' }}
       >
+        {/* Title */}
         <div className="w-100">
           <span
             role="button"
@@ -224,7 +266,9 @@ function Editor(): JSX.Element {
           </span>
         </div>
 
+        {/* Display Messages */}
         <div className="container w-100 h-100 mt-5 overflow-y-auto">
+          {/* Messages */}
           {messages.map((message, index) => {
             if (message.role === 'user') {
               return (
@@ -242,6 +286,27 @@ function Editor(): JSX.Element {
                   <span>{message.content}</span>
                 </div>
               )
+            } else if (message.role === 'warning') {
+              return (
+                <div
+                  key={index}
+                  className="w-100 d-flex justify-content-center flex-column pt-5"
+                  style={{ color: '#fd7e14' }}
+                >
+                  <span>{message.content}</span>
+                  <a
+                    className="text-decoration-none text-decoration-underline"
+                    style={{ fontSize: 11 }}
+                    onClick={() => {
+                      const textarea = document.querySelector('textarea')
+                      textarea!.value = (textarea!.value + '\n' + message.content).trim()
+                      autoExpand(textarea!)
+                    }}
+                  >
+                    Insert at the prompt
+                  </a>
+                </div>
+              )
             } else {
               return (
                 <div key={index} className="w-100 d-flex justify-content-start pt-5">
@@ -250,8 +315,26 @@ function Editor(): JSX.Element {
               )
             }
           })}
+
+          {/* Progress bar when sending message */}
+          {isSending && (
+            <div className="w-100 d-flex justify-content-start pt-4">
+              <div
+                className="progress"
+                role="progressbar"
+                aria-label="progress bar"
+                style={{ height: '15px', width: '100%' }}
+              >
+                <div
+                  className="progress-bar progress-bar-striped progress-bar-animated"
+                  style={{ width: '100%' }}
+                ></div>
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* Prompt */}
         <div
           className="container w-100 rounded d-flex align-items-center position-relative"
           style={{ minHeight: '80px', backgroundColor: '#272727' }}
@@ -269,7 +352,10 @@ function Editor(): JSX.Element {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  sendMessage(e.currentTarget)
+
+                  if (!isRunning && !isSending) {
+                    sendMessage(e.currentTarget)
+                  }
                 }
               }}
             ></textarea>
@@ -277,6 +363,7 @@ function Editor(): JSX.Element {
             <button
               className="btn btn-outline-secondary border-white"
               type="button"
+              disabled={isRunning || isSending}
               onClick={() => {
                 const textarea = document.querySelector('textarea')
                 sendMessage(textarea!)

@@ -57,7 +57,7 @@ export default (): string => {
 
       // Close the server
       server.close(function () {
-        console.log('Server closed!')
+        // console.log('Server closed!')
       })
       // Destroy all open sockets
       for (const socketId in sockets) {
@@ -71,11 +71,11 @@ export default (): string => {
     // Add a newly connected socket
     const socketId = nextSocketId++
     sockets[socketId] = socket
-    console.log('socket', socketId, 'opened')
+    // console.log('socket', socketId, 'opened')
 
     // Remove the socket when it closes
     socket.on('close', function () {
-      console.log('socket', socketId, 'closed')
+      // console.log('socket', socketId, 'closed')
       delete sockets[socketId]
     })
   })
@@ -85,11 +85,11 @@ export default (): string => {
     () => {
       // Close the server
       server.close(function () {
-        console.log('Server closed!')
+        // console.log('Server closed!')
       })
       // Destroy all open sockets
       for (const socketId in sockets) {
-        console.log('socket', socketId, 'destroyed')
+        // console.log('socket', socketId, 'destroyed')
         sockets[socketId].destroy()
       }
     },

@@ -1,4 +1,4 @@
-import { ChildProcess, exec } from 'child_process'
+import { execFile } from 'child_process'
 import { app, ipcMain, webContents } from 'electron/main'
 import { join } from 'path'
 
@@ -12,6 +12,8 @@ import {
   supabase
 } from '../scripts/helpers'
 import { platformHandler } from '../dependencies/python'
+import { dialog } from 'electron'
+import { promisify } from 'util'
 
 /**
  * Project Handles
@@ -27,7 +29,7 @@ interface ProjectSettings {
   file: string
   messages: Chat[]
   commits: { date: string; message: string }[]
-  dependencies: string
+  dependencies: string[]
 }
 
 interface Project {
@@ -43,9 +45,6 @@ interface ToolCallEditFile {
 }
 
 app.whenReady().then(() => {
-  // Store the running processes
-  const processRunning: { [path: string]: ChildProcess | null } = {}
-
   // Initial Messages
   const messages = [
     "Hi! What's up?",
@@ -62,13 +61,14 @@ import sys
 
 def run_script(script_path):
     try:
+        print('Running')
         result = subprocess.run([sys.executable, script_path], check=True, capture_output=True, text=True)
         print(result.stdout)
     except subprocess.CalledProcessError as e:
-        error_message = e.stderr.strip().split(\\"\\n\\")[-1]
+        error_message = e.stderr.strip().split(\"\\n\")[-1]
         print(error_message)
 
-if __name__ == \\"__main__\\":
+if __name__ == \"__main__\":
     if len(sys.argv) != 2:
         sys.exit(1)
     script_path = sys.argv[1]
@@ -87,6 +87,33 @@ label = tk.Label(root, text='Hello World!')
 label.pack(pady=20)
 # Start the application
 root.mainloop()`
+
+  const handleLogs = async (index: number, data: string) => {
+    // Get projects in config file
+    const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+
+    // Try get the project with index
+    const project = projects[index]
+
+    // Get the path to the log file
+    const logPath = join(project.path, 'logfile')
+
+    // Data, everything in a single line, remove all break lines
+    const dataString = data.trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
+
+    if (dataString == '\n') return
+
+    // Append the output to the log file
+    await writeFile(logPath, dataString, {
+      flag: 'a'
+    })
+
+    // Get the focused web content
+    const webContent = webContents.getFocusedWebContents()
+
+    // Send the error to the renderer process
+    webContent?.send('projects:log', index, dataString)
+  }
 
   ipcMain.handle('projects:create', async () => {
     try {
@@ -112,7 +139,7 @@ root.mainloop()`
           }
         ],
         commits: [{ date: formattedDate, message: 'Create Project' }],
-        dependencies: ''
+        dependencies: []
       }
 
       // Create gitignore file
@@ -149,7 +176,7 @@ root.mainloop()`
       // Send the update to the renderer process
       webContent?.send('projects:update')
     } catch (error) {
-      console.log(error)
+      console.error(error)
     }
   })
 
@@ -176,7 +203,7 @@ root.mainloop()`
       // Send the update to the renderer process
       webContent?.send('projects:update')
     } catch (error) {
-      console.log(error)
+      console.error(error)
     }
   })
 
@@ -194,78 +221,80 @@ root.mainloop()`
       // Get the path to the project settings file
       const settingsPath = join(project.path, 'settings.json')
 
-      // Get the path to the log file
-      const logPath = join(project.path, 'logfile')
-
       // Read the project settings
       const projectSettings = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
 
       // Create the full path to the project file to run
       const filePath = join(userDataPath, project.path, projectSettings.file)
 
-      // Kill the process if it's running
-      processRunning[filePath]?.kill(), (processRunning[filePath] = null)
-
       // Get platform python information
       const plataformInfo = platformHandler()
 
-      // Command to install dependencies
-      const installDep =
-        projectSettings.dependencies.length > 0
-          ? `${join(userDataPath, 'python', plataformInfo.exec)} -m pip install ${projectSettings.dependencies};`
-          : ''
+      // Install the dependencies if there are any
+      if (projectSettings.dependencies.length > 0) {
+        // Python executable path
+        const pythonExecutable = join(userDataPath, 'python', plataformInfo.exec)
 
-      // Command to run the python file after install the dependencies
-      const command = `${installDep} ${join(userDataPath, 'python', plataformInfo.exec)} -c '${filterScript}' ${filePath}`
+      // Promisify exec: Run commands asynchronously
+      const execPromise = promisify(execFile)
 
-      // Start the process, detached so it doesn't close when the app closes, here you should use full paths
-      processRunning[filePath] = exec(command, plataformInfo.options)
+        // Execute the command
+        const { stderr } = await execPromise(pythonExecutable, [
+          '-m',
+          'pip',
+          'install',
+          ...projectSettings.dependencies,
+          '--upgrade',
+          'pip',
+          '--no-warn-script-location',
+          '--no-warn-conflicts'
+        ])
 
-      // Log the output
-      processRunning[filePath].stdout?.on('data', async (data) => {
-        console.log(data.toString())
+        // Send erros to the renderer process
+        if (stderr) {
+          handleLogs(index, stderr)
+        }
+      }
+ 
+      // Path to python executable
+      const pythonExecutable = join(userDataPath, 'python', plataformInfo.exec)
 
-        // Data, everything in a single line, remove all break lines
-        const dataString = data.toString().trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
-
-        // Append the output to the log file
-        await writeFile(logPath, dataString, {
-          flag: 'a'
-        })
-      })
-
-      // Log the error
-      processRunning[filePath].stderr?.on('data', async (data) => {
-        console.log(data.toString())
-
-        // Data, everything in a single line, remove all break lines
-        const dataString = data.toString().trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
-
-        // Append the output to the log file
-        await writeFile(logPath, dataString, {
-          flag: 'a'
-        })
-      })
-
-      // Kill the process when it closes
-      processRunning[filePath].on('close', (code) => {
+      // Run Python file
+      const process = execFile(pythonExecutable, ['-c', filterScript, filePath], () => {
+        // Send signal to the renderer process that project has being executed
         const webContent = webContents.getFocusedWebContents()
 
-        webContent?.send('projects:stopped', index, code)
-        processRunning[filePath]?.kill(), (processRunning[filePath] = null)
+        // Send the update to the renderer process
+        webContent?.send('projects:executed', index)
+      })
+
+      // Handle the output of the python file
+      process.stdout?.on('data', (data) => handleLogs(index, data))
+
+      // Handle the error of the python file
+      process.stderr?.on('data', (data) => handleLogs(index, data))
+
+      // Use resolve to wait for the process to finish
+      await new Promise((resolve) => {
+        process.on('exit', () => {
+          resolve(null)
+        })  
       })
     } catch (error) {
-      console.log(error)
+      console.error(error)
     }
   })
 
-  ipcMain.handle('projects:stop', async (_ev, index: number) => {
+  ipcMain.handle('projects:export', async (_ev, index: number) => {
     try {
       // Get projects in config file
       const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
 
       // Try get the project with index
       const project = projects[index]
+
+      // Get platform python information
+      const plataformInfo = platformHandler()
 
       // Get the path to the project settings file
       const settingsPath = join(project.path, 'settings.json')
@@ -276,19 +305,55 @@ root.mainloop()`
       // Get the path to the user data directory
       const userDataPath = app.getPath('userData')
 
-      // Get the web content
-      const webContent = webContents.getFocusedWebContents()
-
-      // Create the full path to the project file to stop
+      // Create the full path to the project file to run
       const filePath = join(userDataPath, project.path, projectSettings.file)
 
-      // Kill the process if it's running
-      processRunning[filePath]?.kill(), (processRunning[filePath] = null)
+      // Get the folder to export the project
+      const exportDialog = await dialog.showOpenDialog({
+        title: 'Export Project',
+        defaultPath: join(app.getPath('desktop')),
+        properties: ['openDirectory']
+      })
 
-      // Send signal to the renderer process that the project has stopped
-      webContent?.send('projects:stopped', index, 0)
+      // Python executable
+      const pythonExecutable = join(userDataPath, 'python', plataformInfo.exec)
+
+      // If the user canceled the dialog do nothing
+      if (exportDialog.canceled) {
+        return
+      }
+
+      // Output folder
+      const outputFolder = exportDialog.filePaths[0]
+
+      // Execute the command
+      const exportProcess = execFile(pythonExecutable, [
+        '-m',
+        'PyInstaller',
+        '--onefile',
+        '--noconsole',
+        '--distpath',
+        outputFolder,
+        filePath
+      ], () => {
+        // Send signal to the renderer process that command has being executed
+        const webContent = webContents.getFocusedWebContents()
+
+        // Send the update to the renderer process
+        webContent?.send('projects:executed', index)
+      })
+
+      // Print erros
+      exportProcess.stderr?.on('data', (data) => console.error(data))
+
+      // Use resolve to wait for the process to finish
+      await new Promise((resolve) => {
+        exportProcess.on('exit', () => {
+          resolve(null)
+        })
+      })
     } catch (error) {
-      console.log(error)
+      console.error(error)
     }
   })
 
@@ -312,7 +377,7 @@ root.mainloop()`
       // Send the update to the renderer process
       webContent?.send('projects:update')
     } catch (error) {
-      console.log(error)
+      console.error(error)
     }
   })
 
@@ -322,7 +387,7 @@ root.mainloop()`
       const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
       return projects
     } catch (error) {
-      console.log(error)
+      console.error(error)
     }
     return []
   })
@@ -343,9 +408,9 @@ root.mainloop()`
 
       return projectSettings
     } catch (error) {
-      console.log(error)
+      console.error(error)
+      return null
     }
-    return null
   })
 
   ipcMain.handle(
@@ -362,134 +427,146 @@ root.mainloop()`
         const settingsPath = join(project.path, 'settings.json')
 
         // Read the project settings
-        const projectSettings = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+        const projectSettings = JSON.parse(
+          (await readFile(settingsPath)) || '{}'
+        ) as ProjectSettings
 
         // Add the new message
         projectSettings.messages.push({ role: 'user', content })
 
-        // Copy of messages
-        const messages = [...projectSettings.messages]
+        // If there is an access token (logged in)
+        if (access_token) {
+          // Copy of messages
+          const messages = [...projectSettings.messages]
 
-        // Read my file
-        const fileContent = await readFile(join(project.path, projectSettings.file))
+          // Read my file
+          const fileContent = await readFile(join(project.path, projectSettings.file))
 
-        // Add context of the main file
-        messages.push({
-          role: 'system',
-          content: `(App) Source Code='${fileContent}'`
-        })
+          // Add context of the main file
+          messages.push({
+            role: 'system',
+            content: `(App) Source Code='${fileContent}'`
+          })
 
-        // Send the message to the assistant
-        // Payload to send to the assistant API
-        const payload = {
-          access_token: access_token,
-          messages,
-          app_version: '1.0.0'
-        }
-
-        const response = await supabase.functions.invoke('assistant-api', {
-          body: payload
-        })
-
-        // Add the assistant response if error
-        if (response.error) {
-          if (response.error.context && response.error.context.status) {
-            switch (response.error.context.status) {
-              case 401:
-                projectSettings.messages.push({
-                  role: 'assistant',
-                  content: `Something went wrong, please make sure you're logged in!`
-                })
-                break
-              case 402:
-                projectSettings.messages.push({
-                  role: 'assistant',
-                  content: `Something went wrong, please make sure you have a valid subscription!`
-                })
-                break
-              default:
-                projectSettings.messages.push({
-                  role: 'assistant',
-                  content: `Something went wrong, please try again later!`
-                })
-                break
-            }
-          } else {
-            projectSettings.messages.push({
-              role: 'assistant',
-              content: `Something went wrong, please try again later!`
-            })
+          // Send the message to the assistant
+          // Payload to send to the assistant API
+          const payload = {
+            access_token: access_token,
+            messages,
+            app_version: '1.0.0'
           }
-        }
 
-        // Get response data
-        const data = response.data
-        if (data && data[0]) {
-          const choice = data[0]
-          // Get the message from the assistant
-          const message = choice.message
+          const response = await supabase.functions.invoke('assistant-api', {
+            body: payload
+          })
 
-          if (message.content)
-            projectSettings.messages.push({ role: 'assistant', content: message.content })
-          if (message.tool_calls) {
-            // Handle the tool calls
-            const toolCallPromises = message.tool_calls.map(
-              async (tool_call: { function: { name: string; arguments: string } }) => {
-                if (tool_call.function.name !== 'edit_main_file') {
+          // Add the assistant response if error
+          if (response.error) {
+            if (response.error.context && response.error.context.status) {
+              switch (response.error.context.status) {
+                case 401: // Just in case the token is invalid
                   projectSettings.messages.push({
                     role: 'assistant',
-                    content: 'Unrecognized Operation!'
+                    content: `Something went wrong, please make sure you're logged in!`
                   })
-                } else {
-                  // Get the arguments
-                  const args: ToolCallEditFile = JSON.parse(tool_call.function.arguments)
-
-                  // Update the file content
-                  await writeFile(join(project.path, projectSettings.file), args.file_content)
-
-                  // Unnecessary requirements
-                  const unnecessary = ['tkinter']
-
-                  // Remove the unnecessary requirements
-                  args.pip_requirements = args.pip_requirements.filter(
-                    (requirement) => !unnecessary.includes(requirement)
-                  )
-
-                  // Update the dependencies
-                  projectSettings.dependencies = args.pip_requirements.join(' ')
-
-                  // Update the commits
-                  projectSettings.commits.push({
-                    date: new Date().toISOString(),
-                    message: args.commit_message
+                  break
+                case 402:
+                  projectSettings.messages.push({
+                    role: 'assistant',
+                    content: `Something went wrong, please make sure you have a valid subscription!`
                   })
-
-                  // Commit the changes
-                  await gitCommit(project.path, args.commit_message)
-                }
+                  break
+                default:
+                  projectSettings.messages.push({
+                    role: 'assistant',
+                    content: `Something went wrong, please try again later!`
+                  })
+                  break
               }
-            )
-
-            // Wait for all tool call promises to resolve
-            await Promise.all(toolCallPromises)
+            } else {
+              projectSettings.messages.push({
+                role: 'assistant',
+                content: `Something went wrong, please try again later!`
+              })
+            }
           }
+
+          // Get response data
+          const data = response.data
+          if (data && data[0]) {
+            const choice = data[0]
+            // Get the message from the assistant
+            const message = choice.message
+
+            if (message.content)
+              projectSettings.messages.push({ role: 'assistant', content: message.content })
+            if (message.tool_calls) {
+              // Handle the tool calls
+              const toolCallPromises = message.tool_calls.map(
+                async (tool_call: { function: { name: string; arguments: string } }) => {
+                  if (tool_call.function.name !== 'edit_main_file') {
+                    projectSettings.messages.push({
+                      role: 'assistant',
+                      content: 'Unrecognized Operation!'
+                    })
+                  } else {
+                    // Get the arguments
+                    const args: ToolCallEditFile = JSON.parse(tool_call.function.arguments)
+
+                    // Update the file content
+                    await writeFile(join(project.path, projectSettings.file), args.file_content)
+
+                    // Unnecessary requirements
+                    const unnecessary = ['tkinter']
+
+                    // Remove the unnecessary requirements
+                    args.pip_requirements = args.pip_requirements.filter(
+                      (requirement) => !unnecessary.includes(requirement)
+                    )
+
+                    // Update the dependencies
+                    projectSettings.dependencies = [
+                      ...new Set([...projectSettings.dependencies, ...args.pip_requirements])
+                    ]
+
+                    // Update the commits
+                    projectSettings.commits.push({
+                      date: new Date().toISOString(),
+                      message: args.commit_message
+                    })
+
+                    // Commit the changes
+                    await gitCommit(project.path, args.commit_message)
+
+                    // Rename the project if as default name
+                    if (project.title == 'New Project') {
+                      // Get the focused web content
+                      const webContent = webContents.getFocusedWebContents()
+
+                      project.title =
+                        projectSettings.commits[projectSettings.commits.length - 1].message
+                      await writeFile('projects.json', JSON.stringify(projects))
+
+                      // Send the update to the renderer process
+                      webContent?.send('projects:update')
+                    }
+                  }
+                }
+              )
+              // Wait for all tool call promises to resolve
+              await Promise.all(toolCallPromises)
+            }
+          }
+        } else {
+          projectSettings.messages.push({
+            role: 'assistant',
+            content: `Something went wrong, please make sure you're logged in!`
+          })
         }
         // Update the settings.json file
         await writeFile(settingsPath, JSON.stringify(projectSettings))
-
-        // Rename the project if as default name
-        if (project.title == 'New Project') {
-          // Get the focused web content
-          const webContent = webContents.getFocusedWebContents()
-
-          project.title = projectSettings.commits[projectSettings.commits.length - 1].message
-          await writeFile('projects.json', JSON.stringify(projects))
-
-          // Send the update to the renderer process
-          webContent?.send('projects:update')
-        }
       } catch (error) {
-        console.log(error)
+        console.error(error)
       }
     }
   )

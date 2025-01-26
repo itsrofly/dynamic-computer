@@ -2,7 +2,7 @@
  * Loading and info should never be sent to the server
  */
 export interface Chat {
-  role: 'user' | 'assistant' | 'loading' | 'info' 
+  role: 'user' | 'assistant' | 'info' | 'warning'
   content: string
 } 
 
@@ -10,7 +10,7 @@ export interface ProjectSettings {
   file: string
   messages: Chat[]
   commits: { date: string; message: string }[]
-  dependencies: string
+  dependencies: string[]
 }
 
 export interface Project {
