@@ -1,5 +1,5 @@
 // React
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 // Components
@@ -41,6 +41,9 @@ function Editor(): JSX.Element {
 
   // Parse the index to an integer
   const index = indexParam !== null ? parseInt(indexParam) : null
+
+  // Reference to the container of the messages
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // If the index is null, return a 404 page
   if (index === null) return <NotFound />
@@ -135,6 +138,13 @@ function Editor(): JSX.Element {
     }
     getProject()
   }, [refreshPage])
+
+  // Auto scroll to the bottom of the messages
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [messages, isSending, isExecuting])
 
   return (
     <>
@@ -284,7 +294,7 @@ function Editor(): JSX.Element {
         </div>
 
         {/* Display Messages */}
-        <div className="container w-100 h-100 mt-5 overflow-y-auto">
+        <div className="container w-100 h-100 mt-5 overflow-y-auto" ref={containerRef}>
           {/* Messages */}
           {messages.map((message, index) => {
             if (message.role === 'user') {
