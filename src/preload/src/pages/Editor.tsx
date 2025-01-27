@@ -27,6 +27,9 @@ function Editor(): JSX.Element {
   // State to check if is sending a message
   const [isSending, setIsSending] = useState(false)
 
+  // State to show the loading feedback
+  const [isExecuting, setIsExecuting] = useState(false)
+
   // State to show all messages, including loading and info types
   const [messages, setMessages] = useState<Chat[]>([])
 
@@ -52,6 +55,20 @@ function Editor(): JSX.Element {
   ipcRenderer.once('projects:log', (_event, i, log) => {
     if (i === index) {
       setMessages([...messages, { role: 'warning', content: log }])
+    }
+  })
+
+  // If received a singnal to start the loading feedback
+  ipcRenderer.once('projects:loading:start', (_event, i) => {
+    if (i === index) {
+      setIsExecuting(true)
+    }
+  })
+
+  // If received a singnal to end the loading feedback
+  ipcRenderer.once('projects:loading:end', (_event, i) => {
+    if (i === index) {
+      setIsExecuting(false)
     }
   })
 
@@ -146,9 +163,9 @@ function Editor(): JSX.Element {
         <div className="mt-5">
           <a
             role="button"
-            style={{ cursor: isRunning || isSending ? 'default' : 'pointer' }}
+            style={{ cursor: isRunning ? 'default' : 'pointer' }}
             onClick={async () => {
-              if (!isRunning && !isSending) {
+              if (!isRunning) {
                 // Set the running feedback
                 setIsRunning(true)
                 // Wait for the project to start and stop
@@ -186,9 +203,9 @@ function Editor(): JSX.Element {
         <div className="mt-5">
           <a
             role="button"
-            style={{ cursor: isSending ? 'default' : 'pointer' }}
+            style={{ cursor: isExecuting ? 'default' : 'pointer' }}
             onClick={async () => {
-              if (!isSending) {
+              if (!isExecuting) {
                 // Wait for the download/export to finish
                 await ipcRenderer.invoke('projects:export', index)
               }
@@ -332,6 +349,21 @@ function Editor(): JSX.Element {
               </div>
             </div>
           )}
+          {isExecuting && (
+            <div className="w-100 d-flex justify-content-start pt-4">
+              <div
+                className="progress"
+                role="progressbar"
+                aria-label="progress bar"
+                style={{ height: '15px', width: '100%' }}
+              >
+                <div
+                  className="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                  style={{ width: '100%' }}
+                ></div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Prompt */}
@@ -353,7 +385,7 @@ function Editor(): JSX.Element {
                 if (e.key === 'Enter') {
                   e.preventDefault()
 
-                  if (!isRunning && !isSending) {
+                  if (!isSending) {
                     sendMessage(e.currentTarget)
                   }
                 }
@@ -363,7 +395,7 @@ function Editor(): JSX.Element {
             <button
               className="btn btn-outline-secondary border-white"
               type="button"
-              disabled={isRunning || isSending}
+              disabled={isSending}
               onClick={() => {
                 const textarea = document.querySelector('textarea')
                 sendMessage(textarea!)

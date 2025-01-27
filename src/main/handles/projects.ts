@@ -13,7 +13,6 @@ import {
 } from '../scripts/helpers'
 import { platformHandler } from '../dependencies/python'
 import { dialog } from 'electron'
-import { promisify } from 'util'
 
 /**
  * Project Handles
@@ -61,7 +60,6 @@ import sys
 
 def run_script(script_path):
     try:
-        print('Running')
         result = subprocess.run([sys.executable, script_path], check=True, capture_output=True, text=True)
         print(result.stdout)
     except subprocess.CalledProcessError as e:
@@ -235,11 +233,8 @@ root.mainloop()`
         // Python executable path
         const pythonExecutable = join(userDataPath, 'python', plataformInfo.exec)
 
-      // Promisify exec: Run commands asynchronously
-      const execPromise = promisify(execFile)
-
         // Execute the command
-        const { stderr } = await execPromise(pythonExecutable, [
+        const process = execFile(pythonExecutable, [
           '-m',
           'pip',
           'install',
@@ -250,23 +245,34 @@ root.mainloop()`
           '--no-warn-conflicts'
         ])
 
-        // Send erros to the renderer process
-        if (stderr) {
-          handleLogs(index, stderr)
-        }
+        process.stdout?.once('data', () => {
+          // Send signal to the renderer process that command has being executed
+          const webContent = webContents.getFocusedWebContents()
+
+          // Send the update to the renderer process
+          webContent?.send('projects:loading:start', index)
+        })
+
+        process.stderr?.on('data', (data) => handleLogs(index, data))
+
+        // Use resolve to wait for the process to finish
+        await new Promise((resolve) => {
+          process.on('close', async () => {
+            // Send signal to the renderer process that command has being executed
+            const webContent = webContents.getFocusedWebContents()
+
+            // Send the update to the renderer process
+            webContent?.send('projects:loading:end', index)
+            resolve(null)
+          })
+        })
       }
- 
+
       // Path to python executable
       const pythonExecutable = join(userDataPath, 'python', plataformInfo.exec)
 
       // Run Python file
-      const process = execFile(pythonExecutable, ['-c', filterScript, filePath], () => {
-        // Send signal to the renderer process that project has being executed
-        const webContent = webContents.getFocusedWebContents()
-
-        // Send the update to the renderer process
-        webContent?.send('projects:executed', index)
-      })
+      const process = execFile(pythonExecutable, ['-c', filterScript, filePath])
 
       // Handle the output of the python file
       process.stdout?.on('data', (data) => handleLogs(index, data))
@@ -276,9 +282,9 @@ root.mainloop()`
 
       // Use resolve to wait for the process to finish
       await new Promise((resolve) => {
-        process.on('exit', () => {
+        process.on('close', () => {
           resolve(null)
-        })  
+        })
       })
     } catch (error) {
       console.error(error)
@@ -335,12 +341,14 @@ root.mainloop()`
         '--distpath',
         outputFolder,
         filePath
-      ], () => {
+      ])
+
+      exportProcess.stdout?.on('data', () => {
         // Send signal to the renderer process that command has being executed
         const webContent = webContents.getFocusedWebContents()
 
         // Send the update to the renderer process
-        webContent?.send('projects:executed', index)
+        webContent?.send('projects:loading:start', index)
       })
 
       // Print erros
@@ -348,6 +356,12 @@ root.mainloop()`
 
       // Use resolve to wait for the process to finish
       await new Promise((resolve) => {
+        // Send signal to the renderer process that command has being executed
+        const webContent = webContents.getFocusedWebContents()
+
+        // Send the update to the renderer process
+        webContent?.send('projects:loading:end', index)
+
         exportProcess.on('exit', () => {
           resolve(null)
         })
