@@ -143,19 +143,22 @@ async function installDefaultPackages(): Promise<void> {
   // Get the platform information
   const platformOp = platformHandler()
 
-  // Promisify exec: Run commands asynchronously
-  const execPromise = promisify(execFile)
-
   // Python executable path
   const pythonExecutable = join(dir, 'python', platformOp.exec)
 
   // Execute the command
-  const { stderr } = await execPromise(pythonExecutable, ['-m', 'pip', 'install', ...packages])
+  const child = execFile(pythonExecutable, ['-m', 'pip', 'install', ...packages])
 
-  // Log error if any
-  if (stderr) {
-    console.error(stderr)
-  }
+  // Log the erros
+  child.stderr?.on('data', (data) => {
+    console.error(data.toString())
+  })
+
+  await new Promise((resolve) => {
+  child.on('close', () => {
+    resolve(null)
+  })
+})
 }
 
 /**
@@ -190,7 +193,10 @@ export default async (): Promise<void> => {
 
       // Update percentage using state
       item.on('updated', () => {
-        const percentage = Math.floor((item.getReceivedBytes() / item.getTotalBytes()) * 100)
+        let percentage = Math.floor((item.getReceivedBytes() / item.getTotalBytes()) * 100)
+
+        // Limit the percentage to 80 so that the rest can be used for downloading the packages
+        if (percentage >= 84) percentage = 84
 
         // Send the percentage to the web content
         webContent?.send('dependencies:progress', percentage, percentage)
@@ -198,7 +204,6 @@ export default async (): Promise<void> => {
 
       item.once('done', (_event, state) => {
         if (state === 'completed') {
-          webContent?.send('dependencies:progress', 100, 'Extracting dependencies...')
           // Command to extract python
           const command =
             platformOp.options.shell === 'powershell'
@@ -209,6 +214,8 @@ export default async (): Promise<void> => {
           const child = exec(command, platformOp.options)
 
           child.on('close', async (code) => {
+            webContent?.send('dependencies:progress', 92, 92)
+
             // Check if python is installed
             const hasPython = await isPythonInstalled()
             if (hasPython) {
