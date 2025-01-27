@@ -88,7 +88,7 @@ root.mainloop()`
 
   const handleLogs = async (index: number, data: string) => {
     // Get projects in config file
-    const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+    const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
 
     // Try get the project with index
     const project = projects[index]
@@ -125,7 +125,7 @@ root.mainloop()`
       const projectFolder = join('Projects', String(Date.now() + Math.random()))
 
       // Projects config file
-      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
 
       // Project settings
       const settings: ProjectSettings = {
@@ -169,7 +169,7 @@ root.mainloop()`
 
       // Add project to the projects config file, in the first element
       projects.unshift(project)
-      await writeFile('projects.json', JSON.stringify(projects))
+      await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
 
       // Send the update to the renderer process
       webContent?.send('projects:update')
@@ -184,7 +184,7 @@ root.mainloop()`
       const webContent = webContents.getFocusedWebContents()
 
       // Get projects in config file
-      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -195,8 +195,8 @@ root.mainloop()`
       // Remove the project from the projects array
       projects.splice(index, 1)
 
-      // Update the projects.json file
-      await writeFile('projects.json', JSON.stringify(projects))
+      // Update thejoin('Projects', projects.json )file
+      await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
 
       // Send the update to the renderer process
       webContent?.send('projects:update')
@@ -211,7 +211,7 @@ root.mainloop()`
       const userDataPath = app.getPath('userData')
 
       // Get projects in config file
-      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -294,7 +294,7 @@ root.mainloop()`
   ipcMain.handle('projects:export', async (_ev, index: number) => {
     try {
       // Get projects in config file
-      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -397,7 +397,7 @@ root.mainloop()`
       const webContent = webContents.getFocusedWebContents()
 
       // Get projects in config file
-      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -405,8 +405,8 @@ root.mainloop()`
       // Change the project title
       project.title = title
 
-      // Update the projects.json file
-      await writeFile('projects.json', JSON.stringify(projects))
+      // Update thejoin('Projects', projects.json )file
+      await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
 
       // Send the update to the renderer process
       webContent?.send('projects:update')
@@ -418,7 +418,7 @@ root.mainloop()`
   ipcMain.handle('projects:all', async () => {
     try {
       // Return the projects in the config file
-      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
       return projects
     } catch (error) {
       console.error(error)
@@ -429,7 +429,7 @@ root.mainloop()`
   ipcMain.handle('projects:settings', async (_ev, index: number) => {
     try {
       // Get projects in config file
-      const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -452,7 +452,7 @@ root.mainloop()`
     async (_ev, index: number, content: string, access_token: string) => {
       try {
         // Get projects in config file
-        const projects = JSON.parse((await readFile('projects.json')) || '[]') as Project[]
+        const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
 
         // Try get the project with index
         const project = projects[index]
@@ -579,7 +579,7 @@ root.mainloop()`
 
                       project.title =
                         projectSettings.commits[projectSettings.commits.length - 1].message
-                      await writeFile('projects.json', JSON.stringify(projects))
+                      await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
 
                       // Send the update to the renderer process
                       webContent?.send('projects:update')
