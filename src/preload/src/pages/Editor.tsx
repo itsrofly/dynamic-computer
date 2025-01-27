@@ -27,6 +27,9 @@ function Editor(): JSX.Element {
   // State to check if is sending a message
   const [isSending, setIsSending] = useState(false)
 
+  // State to check if is exporting/downloading
+  const [isExporting, setIsExporting] = useState(false)
+
   // State to show the loading feedback
   const [isExecuting, setIsExecuting] = useState(false)
 
@@ -43,7 +46,7 @@ function Editor(): JSX.Element {
   const index = indexParam !== null ? parseInt(indexParam) : null
 
   // Reference to the container of the messages
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // If the index is null, return a 404 page
   if (index === null) return <NotFound />
@@ -142,7 +145,7 @@ function Editor(): JSX.Element {
   // Auto scroll to the bottom of the messages
   useEffect(() => {
     if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
   }, [messages, isSending, isExecuting])
 
@@ -155,7 +158,10 @@ function Editor(): JSX.Element {
       >
         {/* Back button */}
         <div>
-          <Link to="/">
+          <Link to="/" onClick={(e) => {
+            if (isRunning || isExporting) 
+              e.preventDefault()
+          }}>
             <svg
               aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
@@ -163,6 +169,7 @@ function Editor(): JSX.Element {
               viewBox="0 -960 960 960"
               width="24px"
               fill="black"
+              style={{ cursor: isRunning || isExporting || isSending ? 'not-allowed' : 'pointer' }}
             >
               <path d="M400-80 0-480l400-400 71 71-329 329 329 329-71 71Z" />
             </svg>
@@ -173,9 +180,9 @@ function Editor(): JSX.Element {
         <div className="mt-5">
           <a
             role="button"
-            style={{ cursor: isRunning ? 'default' : 'pointer' }}
+            style={{ cursor: isRunning || isExporting ? 'not-allowed' : 'pointer' }}
             onClick={async () => {
-              if (!isRunning) {
+              if (!isRunning && !isExporting) {
                 // Set the running feedback
                 setIsRunning(true)
                 // Wait for the project to start and stop
@@ -185,27 +192,15 @@ function Editor(): JSX.Element {
               }
             }}
           >
-            {isRunning ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                height="36px"
-                viewBox="0 -960 960 960"
-                width="36px"
-                fill="#fd7e14"
-              >
-                <path d="M320-320h320v-320H320v320ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z" />
-              </svg>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                height="36px"
-                viewBox="0 -960 960 960"
-                width="36px"
-                fill="#0d6efd"
-              >
-                <path d="m380-300 280-180-280-180v360ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z" />
-              </svg>
-            )}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="36px"
+              viewBox="0 -960 960 960"
+              width="36px"
+              fill={isRunning ? '#fd7e14' : '#0d6efd'}
+            >
+              <path d="m380-300 280-180-280-180v360ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z" />
+            </svg>
           </a>
         </div>
 
@@ -213,11 +208,16 @@ function Editor(): JSX.Element {
         <div className="mt-5">
           <a
             role="button"
-            style={{ cursor: isExecuting ? 'default' : 'pointer' }}
+            style={{ cursor: isExporting || isRunning ? 'not-allowed' : 'pointer' }}
             onClick={async () => {
-              if (!isExecuting) {
+              if (!isExporting && !isRunning) {
+                // Set the exporting feedback
+                setIsExporting(true)
+                setIsExecuting(true)
                 // Wait for the download/export to finish
                 await ipcRenderer.invoke('projects:export', index)
+                setIsExecuting(false)
+                setIsExporting(false)
               }
             }}
           >
@@ -226,9 +226,9 @@ function Editor(): JSX.Element {
               height="36px"
               viewBox="0 -960 960 960"
               width="36px"
-              fill="#198754"
+              fill={isExporting ? '#fd7e14' : 'green'}
             >
-              <path d="M400-80 0-480l400-400 71 71-329 329 329 329-71 71Z" />
+              <path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z" />
             </svg>
           </a>
         </div>

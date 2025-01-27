@@ -332,6 +332,9 @@ root.mainloop()`
       // Output folder
       const outputFolder = exportDialog.filePaths[0]
 
+      // Temporary folder to store build temporary files
+      const tempFolder = join (app.getPath('temp'), app.getName(), project.path)
+
       // Execute the command
       const exportProcess = execFile(pythonExecutable, [
         '-m',
@@ -340,29 +343,18 @@ root.mainloop()`
         '--noconsole',
         '--distpath',
         outputFolder,
+        '--workpath',
+        tempFolder,
+        '--specpath',
+        tempFolder,
+        '--name',
+        project.title,
         filePath
       ])
 
-      exportProcess.stdout?.on('data', () => {
-        // Send signal to the renderer process that command has being executed
-        const webContent = webContents.getFocusedWebContents()
-
-        // Send the update to the renderer process
-        webContent?.send('projects:loading:start', index)
-      })
-
-      // Print erros
-      exportProcess.stderr?.on('data', (data) => console.error(data))
-
       // Use resolve to wait for the process to finish
       await new Promise((resolve) => {
-        // Send signal to the renderer process that command has being executed
-        const webContent = webContents.getFocusedWebContents()
-
-        // Send the update to the renderer process
-        webContent?.send('projects:loading:end', index)
-
-        exportProcess.on('exit', () => {
+        exportProcess.on('exit', async () => {
           resolve(null)
         })
       })

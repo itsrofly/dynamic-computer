@@ -30,7 +30,6 @@ export async function SignIn(provider: 'google' | 'github'): Promise<void> {
     }
   })
 
-  console.log(data.url)
   // Open url in default url
   if (data.url) shell.openExternal(data.url)
 }
