@@ -577,8 +577,11 @@ root.mainloop()`
                       // Get the focused web content
                       const webContent = webContents.getFocusedWebContents()
 
+                      // Rename the project, max length of 20 characters
                       project.title =
-                        projectSettings.commits[projectSettings.commits.length - 1].message
+                        args.commit_message.length > 20
+                          ? args.commit_message.substring(0, 17) + '...'
+                          : args.commit_message
                       await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
 
                       // Send the update to the renderer process
