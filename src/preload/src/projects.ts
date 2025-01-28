@@ -9,7 +9,7 @@ export interface Chat {
 export interface ProjectSettings {
   file: string
   messages: Chat[]
-  commits: { date: string; message: string }[]
+  currentCommit: string
   dependencies: string[]
 }
 

@@ -6,9 +6,12 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import MessageCard from '../components/Message'
 import NotFound from '../components/404'
 
+// Electron & isomorphic-git
+import { ipcRenderer } from 'electron'
+import { ReadCommitResult } from 'isomorphic-git'
+
 import { ProjectsContext } from '../App'
 import { ProjectSettings, Chat } from '../projects'
-import { ipcRenderer } from 'electron'
 import { supabase } from '../handles/User'
 
 function Editor(): JSX.Element {
@@ -35,6 +38,12 @@ function Editor(): JSX.Element {
 
   // State to show all messages, including loading and info types
   const [messages, setMessages] = useState<Chat[]>([])
+
+  // State to store commits
+  const [commits, setCommits] = useState<{
+    all: ReadCommitResult[]
+    current: ReadCommitResult | undefined
+  }>()
 
   // Get the navigate function to navigate to the home page
   const navigate = useNavigate()
@@ -125,17 +134,27 @@ function Editor(): JSX.Element {
   // Get the project settings/data, when the page is refreshed/loaded
   useEffect(() => {
     const getProject = async (): Promise<void> => {
+      // Get the project settings
       const projectSettings = (await ipcRenderer.invoke(
         'projects:settings',
         index
       )) as ProjectSettings
+
+      // Get all the commits
+      const all = (await ipcRenderer.invoke('projects:allCommits', index)) as ReadCommitResult[]
+
+      // Get the current commit value
+      const current = all.find((commit) => commit.oid === projectSettings.currentCommit)
+
+      // Set all commits
+      setCommits({ all, current })
 
       // Set all messages
       setMessages([
         ...projectSettings.messages,
         {
           role: 'info',
-          content: `Changes: ${projectSettings.commits.length - 1} | Latest Change: ${projectSettings.commits[projectSettings.commits.length - 1].message}`
+          content: `Current Version: ${current?.commit.message}`
         }
       ])
     }
@@ -154,24 +173,25 @@ function Editor(): JSX.Element {
       {/* Sidebar */}
       <div
         className="h-100 rounded-end shadow container text-center pt-5"
-        style={{ width: '90px', float: 'left', backgroundColor: 'white' }}
+        style={{ width: '70px', float: 'left', backgroundColor: 'white' }}
       >
         {/* Back button */}
         <div>
-          <Link to="/" onClick={(e) => {
-            if (isRunning || isExporting) 
-              e.preventDefault()
-          }}>
+          <Link
+            to="/"
+            onClick={(e) => {
+              if (isRunning || isExporting) e.preventDefault()
+            }}
+          >
             <svg
-              aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
-              height="24px"
+              height="32px"
               viewBox="0 -960 960 960"
-              width="24px"
-              fill="black"
+              width="32px"
+              fill="#black"
               style={{ cursor: isRunning || isExporting || isSending ? 'not-allowed' : 'pointer' }}
             >
-              <path d="M400-80 0-480l400-400 71 71-329 329 329 329-71 71Z" />
+              <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z" />
             </svg>
           </Link>
         </div>
@@ -194,14 +214,89 @@ function Editor(): JSX.Element {
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              height="36px"
+              height="32px"
               viewBox="0 -960 960 960"
-              width="36px"
+              width="32px"
               fill={isRunning ? '#fd7e14' : '#0d6efd'}
             >
               <path d="m380-300 280-180-280-180v360ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z" />
             </svg>
           </a>
+        </div>
+
+        {/* Version control */}
+        <div className="mt-5">
+          {/* Button to open the modal */}
+          <a type="button" data-bs-toggle="modal" data-bs-target="#versionControl">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="32px"
+              viewBox="0 -960 960 960"
+              width="32px"
+              fill="MediumPurple"
+            >
+              <path d="M360-120q-66 0-113-47t-47-113v-327q-35-13-57.5-43.5T120-720q0-50 35-85t85-35q50 0 85 35t35 85q0 39-22.5 69.5T280-607v327q0 33 23.5 56.5T360-200q33 0 56.5-23.5T440-280v-400q0-66 47-113t113-47q66 0 113 47t47 113v327q35 13 57.5 43.5T840-240q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-39 22.5-70t57.5-43v-327q0-33-23.5-56.5T600-760q-33 0-56.5 23.5T520-680v400q0 66-47 113t-113 47ZM240-680q17 0 28.5-11.5T280-720q0-17-11.5-28.5T240-760q-17 0-28.5 11.5T200-720q0 17 11.5 28.5T240-680Zm480 480q17 0 28.5-11.5T760-240q0-17-11.5-28.5T720-280q-17 0-28.5 11.5T680-240q0 17 11.5 28.5T720-200ZM240-720Zm480 480Z" />
+            </svg>
+          </a>
+
+          {/* Modal to show all commits */}
+          <div
+            className="modal fade"
+            id="versionControl"
+            tabIndex={-1}
+            aria-labelledby="versionControlLabel"
+            aria-hidden="true"
+          >
+            <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <button
+                    type="button"
+                    className="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"
+                  ></button>
+                </div>
+                <div className="modal-body d-flex justify-content-center">
+                  <div style={{ width: '400px' }}>
+                    {commits?.all.map((commit, i) => {
+                      // Calculate the date
+                      const date = new Date(commit.commit.committer.timestamp * 1000)
+                      return (
+                        <div className="form-check m-3" key={i}>
+                          <input
+                            className="form-check-input"
+                            type="radio"
+                            name="flexRadioDefault"
+                            id={'flexRadioDefault' + i}
+                            checked={commit.oid === commits.current?.oid}
+                            onChange={async () => {
+                              if (commit.oid !== commits.current?.oid){
+                                await ipcRenderer.invoke(
+                                  'projects:selectVersion',
+                                  index,
+                                  commit.oid
+                                )
+                                setRefreshPage(!refreshPage)
+                              }
+                            }}
+                          />
+                          <label
+                            className="form-check-label"
+                            htmlFor={'flexRadioDefault' + i}
+                            style={{ fontSize: 14 }}
+                          >
+                            {commit.commit.message}
+                            {date.toLocaleString()}
+                          </label>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Export/Download button */}
@@ -223,9 +318,9 @@ function Editor(): JSX.Element {
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              height="36px"
+              height="32px"
               viewBox="0 -960 960 960"
-              width="36px"
+              width="32px"
               fill={isExporting ? '#fd7e14' : 'green'}
             >
               <path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z" />
@@ -245,9 +340,9 @@ function Editor(): JSX.Element {
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              height="36px"
+              height="32px"
               viewBox="0 -960 960 960"
-              width="36px"
+              width="32px"
               fill="red"
             >
               <path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z" />

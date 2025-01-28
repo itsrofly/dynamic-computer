@@ -1,7 +1,7 @@
 import { app } from 'electron/main'
 import { existsSync, promises as fsPromises, Mode, ObjectEncodingOptions, OpenMode } from 'fs'
 import { join, parse } from 'path'
-import git from 'isomorphic-git'
+import git, { ReadCommitResult } from 'isomorphic-git'
 import { createClient } from '@supabase/supabase-js'
 
 // Create the supabase client
@@ -30,11 +30,15 @@ export const readFile = async (file: string): Promise<string | null> => {
   return null
 }
 
-export const writeFile = async (file: string, content = '', options?: (ObjectEncodingOptions & {
-  mode?: Mode | undefined,
-  flag?: OpenMode | undefined,
-  flush?: boolean | undefined,
-}) ): Promise<void> => {
+export const writeFile = async (
+  file: string,
+  content = '',
+  options?: ObjectEncodingOptions & {
+    mode?: Mode | undefined
+    flag?: OpenMode | undefined
+    flush?: boolean | undefined
+  }
+): Promise<void> => {
   // Get the path to the user data directory
   const userDataPath = app.getPath('userData')
 
@@ -48,7 +52,7 @@ export const writeFile = async (file: string, content = '', options?: (ObjectEnc
   await fsPromises.mkdir(filePath.replace(parsedPath.base, ''), { recursive: true })
 
   // Write file
-  fsPromises.writeFile(filePath, content, options)
+  await fsPromises.writeFile(filePath, content, options)
 }
 
 export const deleteFile = async (file: string): Promise<void> => {
@@ -65,10 +69,10 @@ export const deleteFile = async (file: string): Promise<void> => {
 
     if (stats.isDirectory()) {
       // Remove the directory and all its contents
-      fsPromises.rm(filePath, { recursive: true, force: true })
+      await fsPromises.rm(filePath, { recursive: true, force: true })
     } else {
       // Remove the file
-      fsPromises.unlink(filePath)
+      await fsPromises.unlink(filePath)
     }
   }
 }
@@ -106,40 +110,47 @@ export const gitRemove = async (folder: string, file: string): Promise<void> => 
   }
 }
 
-export const gitCommit = async (folder: string, message: string): Promise<void> => {
+export const gitCommit = async (folder: string, message: string): Promise<string> => {
   // Get the path to the project folder stored in the user data directory
   const dir = join(app.getPath('userData'), folder)
 
   // Check if the folder exists
   if (existsSync(dir)) {
+    // Stage all files in git
+    const files = await git.listFiles({ fs: fsPromises, dir })
+    for (const file of files) await git.add({ fs: fsPromises, dir, filepath: file })
+
     // Commit the changes
-    await git.commit({
+    return await git.commit({
       fs: fsPromises,
       dir,
       message,
       author: { name: 'Dynamic Computer' }
     })
   }
+  return ''
 }
 
-export const gitListFiles = async (
-  folder: string
-): Promise<{ file: string; content: string }[]> => {
-  // Create an array to store the file contents
-  const contents: { file: string; content: string }[] = []
-
-  // Get the path to the project folder
+export const gitGetCommits = async (folder: string): Promise<ReadCommitResult[]> => {
+  // Get the path to the project folder stored in the user data directory
   const dir = join(app.getPath('userData'), folder)
-  const files = await git.listFiles({ fs: fsPromises, dir })
 
-  // Read the contents of each file and save it to the array
-  for (const file of files) {
-    // Ignore gitignore file
-    if (file === '.gitignore') continue
-
-    // Read the file content
-    const content = await readFile(join(dir, file))
-    contents.push({ file: parse(file).base, content: content || '' })
+  if (existsSync(dir)) {
+    const commits = await git.log({ fs: fsPromises, dir })
+    return commits
   }
-  return contents
+  return []
+}
+
+export const gitCheckout = async (folder: string, oid: string): Promise<string | null> => {
+  // Get the path to the project folder stored in the user data directory
+  const dir = join(app.getPath('userData'), folder)
+
+  // Check if the folder exists
+  if (existsSync(dir)) {
+    // Checkout the commit
+    await git.checkout({ fs: fsPromises, dir, ref: oid, noUpdateHead: true, force: true })
+    return oid
+  }
+  return null
 }

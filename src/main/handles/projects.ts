@@ -9,7 +9,9 @@ import {
   gitAdd,
   gitCommit,
   deleteFile,
-  supabase
+  supabase,
+  gitGetCommits,
+  gitCheckout
 } from '../scripts/helpers'
 import { platformHandler } from '../dependencies/python'
 import { dialog } from 'electron'
@@ -27,7 +29,7 @@ interface Chat {
 interface ProjectSettings {
   file: string
   messages: Chat[]
-  commits: { date: string; message: string }[]
+  currentCommit: string
   dependencies: string[]
 }
 
@@ -87,24 +89,10 @@ label.pack(pady=20)
 root.mainloop()`
 
   const handleLogs = async (index: number, data: string) => {
-    // Get projects in config file
-    const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
-
-    // Try get the project with index
-    const project = projects[index]
-
-    // Get the path to the log file
-    const logPath = join(project.path, 'logfile')
-
     // Data, everything in a single line, remove all break lines
     const dataString = data.trim().replace(/\r/g, '').replace(/\n/g, '') + '\n'
 
     if (dataString == '\n') return
-
-    // Append the output to the log file
-    await writeFile(logPath, dataString, {
-      flag: 'a'
-    })
 
     // Get the focused web content
     const webContent = webContents.getFocusedWebContents()
@@ -125,20 +113,12 @@ root.mainloop()`
       const projectFolder = join('Projects', String(Date.now() + Math.random()))
 
       // Projects config file
-      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
 
-      // Project settings
-      const settings: ProjectSettings = {
-        file: 'main.py', // The file that the project will run
-        messages: [
-          {
-            role: 'assistant', // Create initial message
-            content: messages[Math.floor(Math.random() * messages.length)]
-          }
-        ],
-        commits: [{ date: formattedDate, message: 'Create Project' }],
-        dependencies: []
-      }
+      //  The file that the project will run
+      const mainFile = 'main.py'
 
       // Create gitignore file
       await writeFile(
@@ -147,18 +127,25 @@ root.mainloop()`
       )
 
       // Create main.py file
-      await writeFile(join(projectFolder, settings.file), defaultFile)
-
-      // Create settings.json file
-      await writeFile(join(projectFolder, 'settings.json'), JSON.stringify(settings))
-
-      // Create logfile file
-      await writeFile(join(projectFolder, 'logfile'), '')
+      await writeFile(join(projectFolder, mainFile), defaultFile)
 
       // Initialize git
       await gitInit(projectFolder)
       await gitAdd(projectFolder, '.')
-      await gitCommit(projectFolder, 'Project Created')
+      const commit = await gitCommit(projectFolder, 'Project Created')
+
+      // Project settings
+      const settings: ProjectSettings = {
+        file: mainFile, // The file that the project will run
+        messages: [
+          {
+            role: 'assistant', // Create initial message
+            content: messages[Math.floor(Math.random() * messages.length)]
+          }
+        ],
+        currentCommit: commit,
+        dependencies: []
+      }
 
       // Project information
       const project: Project = {
@@ -167,9 +154,12 @@ root.mainloop()`
         latestDate: formattedDate
       }
 
+      // Create settings.json file
+      await writeFile(join(projectFolder, 'settings.json'), JSON.stringify(settings))
+
       // Add project to the projects config file, in the first element
       projects.unshift(project)
-      await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
+      await writeFile(join('Projects', 'projects.json'), JSON.stringify(projects))
 
       // Send the update to the renderer process
       webContent?.send('projects:update')
@@ -184,7 +174,9 @@ root.mainloop()`
       const webContent = webContents.getFocusedWebContents()
 
       // Get projects in config file
-      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -196,7 +188,7 @@ root.mainloop()`
       projects.splice(index, 1)
 
       // Update thejoin('Projects', projects.json )file
-      await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
+      await writeFile(join('Projects', 'projects.json'), JSON.stringify(projects))
 
       // Send the update to the renderer process
       webContent?.send('projects:update')
@@ -211,7 +203,9 @@ root.mainloop()`
       const userDataPath = app.getPath('userData')
 
       // Get projects in config file
-      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -294,7 +288,9 @@ root.mainloop()`
   ipcMain.handle('projects:export', async (_ev, index: number) => {
     try {
       // Get projects in config file
-      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -397,7 +393,9 @@ root.mainloop()`
       const webContent = webContents.getFocusedWebContents()
 
       // Get projects in config file
-      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -406,7 +404,7 @@ root.mainloop()`
       project.title = title
 
       // Update thejoin('Projects', projects.json )file
-      await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
+      await writeFile(join('Projects', 'projects.json'), JSON.stringify(projects))
 
       // Send the update to the renderer process
       webContent?.send('projects:update')
@@ -418,7 +416,9 @@ root.mainloop()`
   ipcMain.handle('projects:all', async () => {
     try {
       // Return the projects in the config file
-      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
       return projects
     } catch (error) {
       console.error(error)
@@ -429,7 +429,9 @@ root.mainloop()`
   ipcMain.handle('projects:settings', async (_ev, index: number) => {
     try {
       // Get projects in config file
-      const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
 
       // Try get the project with index
       const project = projects[index]
@@ -452,7 +454,9 @@ root.mainloop()`
     async (_ev, index: number, content: string, access_token: string) => {
       try {
         // Get projects in config file
-        const projects = JSON.parse((await readFile(join('Projects','projects.json'))) || '[]') as Project[]
+        const projects = JSON.parse(
+          (await readFile(join('Projects', 'projects.json'))) || '[]'
+        ) as Project[]
 
         // Try get the project with index
         const project = projects[index]
@@ -564,13 +568,10 @@ root.mainloop()`
                     ]
 
                     // Update the commits
-                    projectSettings.commits.push({
-                      date: new Date().toISOString(),
-                      message: args.commit_message
-                    })
-
-                    // Commit the changes
-                    await gitCommit(project.path, args.commit_message)
+                    projectSettings.currentCommit = await gitCommit(
+                      project.path,
+                      args.commit_message
+                    )
 
                     // Rename the project if as default name
                     if (project.title == 'New Project') {
@@ -582,7 +583,7 @@ root.mainloop()`
                         args.commit_message.length > 20
                           ? args.commit_message.substring(0, 17) + '...'
                           : args.commit_message
-                      await writeFile(join('Projects','projects.json'), JSON.stringify(projects))
+                      await writeFile(join('Projects', 'projects.json'), JSON.stringify(projects))
 
                       // Send the update to the renderer process
                       webContent?.send('projects:update')
@@ -607,4 +608,49 @@ root.mainloop()`
       }
     }
   )
+
+  ipcMain.handle('projects:allCommits', async (_ev, index: number) => {
+    try {
+      // Get projects in config file
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
+
+      // Try get the project with index
+      const project = projects[index]
+
+      // Get commits
+      return await gitGetCommits(project.path)
+    } catch (error) {
+      console.error(error)
+      return []
+    }
+  })
+
+  ipcMain.handle('projects:selectVersion', async (_ev, index: number, oid: string) => {
+    try {
+      // Get projects in config file
+      const projects = JSON.parse(
+        (await readFile(join('Projects', 'projects.json'))) || '[]'
+      ) as Project[]
+
+      // Try get the project with index
+      const project = projects[index]
+
+      // Get the path to the project settings file
+      const settingsPath = join(project.path, 'settings.json')
+
+      // Read the project settings
+      const projectSettings = JSON.parse((await readFile(settingsPath)) || '{}') as ProjectSettings
+
+      // Checkout the commit
+      projectSettings.currentCommit =
+        (await gitCheckout(project.path, oid)) || projectSettings.currentCommit
+
+      // Update the settings.json file
+      await writeFile(settingsPath, JSON.stringify(projectSettings))
+    } catch (error) {
+      return
+    }
+  })
 })
