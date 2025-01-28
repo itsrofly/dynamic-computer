@@ -330,7 +330,7 @@ root.mainloop()`
         '-m',
         'pip',
         'install',
-        'tkinter',
+        'pyinstaller',
         ...projectSettings.dependencies,
         '--upgrade',
         'pip',
@@ -367,9 +367,12 @@ root.mainloop()`
         '--specpath',
         tempFolder,
         '--name',
-        project.title,
+        project.title.replaceAll('.', ''), // Remove dots from the title in case
         filePath
       ])
+
+      exportProcess.stdout?.on('data', (data) => console.log(data))
+      exportProcess.stderr?.on('data', (data) => console.log(data))
 
       // Use resolve to wait for the process to finish
       await new Promise((resolve) => {
