@@ -325,33 +325,28 @@ root.mainloop()`
         return
       }
 
-      // Install the dependencies if there are any
-      if (projectSettings.dependencies.length > 0) {
-        // Python executable path
-        const pythonExecutable = join(userDataPath, 'python', plataformInfo.exec)
+      // Execute the command to install the dependencies
+      const process = execFile(pythonExecutable, [
+        '-m',
+        'pip',
+        'install',
+        'tkinter',
+        ...projectSettings.dependencies,
+        '--upgrade',
+        'pip',
+        '--no-warn-script-location',
+        '--no-warn-conflicts'
+      ])
 
-        // Execute the command
-        const process = execFile(pythonExecutable, [
-          '-m',
-          'pip',
-          'install',
-          ...projectSettings.dependencies,
-          '--upgrade',
-          'pip',
-          '--no-warn-script-location',
-          '--no-warn-conflicts'
-        ])
+      // Send the erros to the renderer process
+      process.stderr?.on('data', (data) => handleLogs(index, data))
 
-        // Send the erros to the renderer process
-        process.stderr?.on('data', (data) => handleLogs(index, data))
-
-        // Use resolve to wait for the process to finish
-        await new Promise((resolve) => {
-          process.on('close', async () => {
-            resolve(null)
-          })
+      // Use resolve to wait for the process to finish
+      await new Promise((resolve) => {
+        process.on('close', async () => {
+          resolve(null)
         })
-      }
+      })
 
       // Output folder
       const outputFolder = exportDialog.filePaths[0]
@@ -359,7 +354,7 @@ root.mainloop()`
       // Temporary folder to store build temporary files
       const tempFolder = join(app.getPath('temp'), app.getName(), project.path)
 
-      // Execute the command
+      // Execute the command to export the project
       const exportProcess = execFile(pythonExecutable, [
         '-m',
         'PyInstaller',
