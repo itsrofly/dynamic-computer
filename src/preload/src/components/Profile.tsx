@@ -93,11 +93,19 @@ function ProfileModal(): JSX.Element {
               ) : (
                 // If signed in show profile info and (manage, sign out) buttons
                 <>
-                  <div className="w-100 d-flex justify-content-center mb-3">
-                    <span>{user.email}</span>
+                  <div className="w-100 d-flex flex-column justify-content-center align-items-center mb-3">
+                    <img
+                      src={user.user_metadata.avatar_url}
+                      alt="mdo"
+                      width="64"
+                      height="64"
+                      className="rounded-circle"
+                    />
+                    <br />
+                    <span>{user.user_metadata.full_name || user.user_metadata.name}</span>
                   </div>
-
-                  <div className="w-100 d-flex justify-content-center gap-3">
+                  
+                  <div className="w-100 d-flex justify-content-center gap-3 mt-2">
                     <a
                       role="button"
                       className="btn btn-outline-primary"
