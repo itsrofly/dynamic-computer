@@ -25,6 +25,7 @@
     "@electron-toolkit/utils": "^3.0.0",
     "@supabase/supabase-js": "^2.47.12",
     "electron-updater": "^6.1.7",
+    "get-folder-size": "^5.0.0",
     "isomorphic-git": "^1.29.0"
   },
   "devDependencies": {

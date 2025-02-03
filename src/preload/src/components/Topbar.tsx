@@ -85,9 +85,14 @@ function Topbar({ setFilter }: { setFilter: Dispatch<SetStateAction<string>> }):
                 Profile
               </a>
             </li>
-            
+
             <li>
-              <a className="dropdown-item" href="#">
+              <a
+                className="dropdown-item"
+                href="#"
+                data-bs-toggle="modal"
+                data-bs-target="#settingsModal"
+              >
                 Settings
               </a>
             </li>

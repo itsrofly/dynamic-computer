@@ -1,5 +1,8 @@
-import { execFile } from 'child_process'
+import { dialog } from 'electron'
 import { app, ipcMain, webContents } from 'electron/main'
+
+import { promises as fsPromises } from 'fs'
+import { execFile } from 'child_process'
 import { join } from 'path'
 
 import {
@@ -13,8 +16,8 @@ import {
   gitGetCommits,
   gitCheckout
 } from '../scripts/helpers'
+
 import { platformHandler } from '../dependencies/python'
-import { dialog } from 'electron'
 
 /**
  * Project Handles
@@ -245,6 +248,7 @@ root.mainloop()`
 
           // Send the update to the renderer process
           webContent?.send('projects:loading:start', index)
+          handleLogs(index, 'Managing dependencies.')
         })
 
         process.stderr?.on('data', (data) => handleLogs(index, data))
@@ -344,6 +348,8 @@ root.mainloop()`
       // Use resolve to wait for the process to finish
       await new Promise((resolve) => {
         process.on('close', async () => {
+          // Send log to the renderer process
+          handleLogs(index, 'Managing dependencies.')
           resolve(null)
         })
       })
@@ -353,6 +359,9 @@ root.mainloop()`
 
       // Temporary folder to store build temporary files
       const tempFolder = join(app.getPath('temp'), app.getName(), project.path)
+
+      // Project name, remove dots from the title in case
+      const projectTitle = project.title.replaceAll('.', '').replaceAll(' ', '_')
 
       // Execute the command to export the project
       const exportProcess = execFile(pythonExecutable, [
@@ -367,7 +376,7 @@ root.mainloop()`
         '--specpath',
         tempFolder,
         '--name',
-        project.title.replaceAll('.', ''), // Remove dots from the title in case
+        projectTitle,
         filePath
       ])
 
@@ -376,7 +385,14 @@ root.mainloop()`
 
       // Use resolve to wait for the process to finish
       await new Promise((resolve) => {
-        exportProcess.on('exit', async () => {
+        exportProcess.on('exit', async (code) => {
+          if (code === 0) {
+            // Send log to the renderer process
+            handleLogs(index, 'Project exported successfully.')
+          } else {
+            // Send log to the renderer process
+            handleLogs(index, 'Something went wrong, please make sure the project is running properly.')
+          }
           resolve(null)
         })
       })
@@ -649,6 +665,37 @@ root.mainloop()`
       await writeFile(settingsPath, JSON.stringify(projectSettings))
     } catch (error) {
       return
+    }
+  })
+
+  ipcMain.handle('projects:getCacheSize', async () => {
+    try {
+      // Get the path to the temp folder
+      const tempFolder = join(app.getPath('temp'), app.getName())
+
+      // Function to get the folder size
+      const getFolderSize = (await import('get-folder-size')).default
+
+      // Get the size of the folder
+      const size = await getFolderSize.loose(tempFolder)
+
+      return (size / 1000 / 1000).toFixed(2) // Convert to MB
+    } catch (error) {
+      console.error(error)
+      return 0
+    }
+  })
+
+  ipcMain.handle('projects:clearCache', async () => {
+    try {
+      // Get the path to the temp folder
+      const tempFolder = join(app.getPath('temp'), app.getName())
+
+      // Delete the folder
+      // Remove the directory and all its contents
+      await fsPromises.rm(tempFolder, { recursive: true, force: true })
+    } catch (error) {
+      console.error(error)
     }
   })
 })

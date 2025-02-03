@@ -132,33 +132,40 @@ print(json.dumps(get_installed_packages_info()))
   }
 }
 
-// Install default packages for the app
-async function installDefaultPackages(): Promise<void> {
-  // Default packages to install
-  const packages = ['pyinstaller']
+// Uninstall python packages
+export async function uninstallPythonPackage(packageName: string): Promise<void> {
+  try {
+    // Get the app data dir
+    const dir = app.getPath('userData')
 
-  // Get the app data dir
-  const dir = app.getPath('userData')
+    // Get the platform information
+    const platformOp = platformHandler()
 
-  // Get the platform information
-  const platformOp = platformHandler()
+    // Python executable path
+    const pythonExecutable = join(dir, 'python', platformOp.exec)
 
-  // Python executable path
-  const pythonExecutable = join(dir, 'python', platformOp.exec)
+    // Execute the command
+    const child = execFile(pythonExecutable, ['-m', 'pip', 'uninstall', '-y', packageName])
 
-  // Execute the command
-  const child = execFile(pythonExecutable, ['-m', 'pip', 'install', ...packages])
+    // Log the erros
+    child.stderr?.on('data', (data) => {
+      console.error(data.toString())
+    })
 
-  // Log the erros
-  child.stderr?.on('data', (data) => {
-    console.error(data.toString())
-  })
+    await new Promise((resolve) => {
+      child.on('close', () => {
+        resolve(null)
 
-  await new Promise((resolve) => {
-  child.on('close', () => {
-    resolve(null)
-  })
-})
+        // Get web content
+        const webContent = webContents.getFocusedWebContents()
+
+        // Send the event to update
+        webContent?.send('projects:update')
+      })
+    })
+  } catch (error) {
+    console.error(error)
+  }
 }
 
 /**
@@ -195,15 +202,14 @@ export default async (): Promise<void> => {
       item.on('updated', () => {
         let percentage = Math.floor((item.getReceivedBytes() / item.getTotalBytes()) * 100)
 
-        // Limit the percentage to 80 so that the rest can be used for downloading the packages
-        if (percentage >= 84) percentage = 84
-
-        // Send the percentage to the web content
+        // Send the percentage to the web content (percentage, messageDisplayed)
         webContent?.send('dependencies:progress', percentage, percentage)
       })
 
       item.once('done', (_event, state) => {
         if (state === 'completed') {
+          // (percentage, messageDisplayed)
+          webContent?.send('dependencies:progress', 100, "Extracting Dependencies")
           // Command to extract python
           const command =
             platformOp.options.shell === 'powershell'
@@ -214,13 +220,10 @@ export default async (): Promise<void> => {
           const child = exec(command, platformOp.options)
 
           child.on('close', async (code) => {
-            webContent?.send('dependencies:progress', 92, 92)
 
             // Check if python is installed
             const hasPython = await isPythonInstalled()
             if (hasPython) {
-              // Install default packages
-              await installDefaultPackages()
               // Emit the event that tells python is installed
               loadingEvents.emit('dependencies:installed', 'python')
             } else {
@@ -231,7 +234,6 @@ export default async (): Promise<void> => {
                 'Error 1001',
                 'Failed to install dependencies.\nPlease check your internet connection and try again.'
               )
-
               // Close the app
               app.quit()
             }

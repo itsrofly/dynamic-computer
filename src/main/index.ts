@@ -4,7 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 
 // Scripts
 import callback_server from './scripts/callback'
-import pythonInstaller from './dependencies/python'
+import pythonInstaller, { getPythonPackages, uninstallPythonPackage } from './dependencies/python'
 
 // Handles
 import './handles/projects'
@@ -107,6 +107,16 @@ app.whenReady().then(async () => {
   ipcMain.handle('callback:server', async () => {
     // Start the OAuth server
     return callback_server()
+  })
+
+  // Handle python packages requests
+  ipcMain.handle('python:packages', async () => {
+    return await getPythonPackages()
+  })
+
+  // Handle python uninstall requests
+  ipcMain.handle('python:uninstall', async (_ev, packageName) => {
+    return await uninstallPythonPackage(packageName)
   })
 
   // Default open or close DevTools by F12 in development

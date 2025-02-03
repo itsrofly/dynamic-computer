@@ -5,6 +5,7 @@ import Card from '../components/Card'
 import CardCreate from '../components/Create'
 import Topbar from '../components/Topbar'
 import ProfileModal from '../components/Profile'
+import SettingsModal from '../components/Settings'
 
 import { ProjectsContext } from '../App'
 
@@ -18,7 +19,7 @@ function Select(): JSX.Element {
     <>
       <Topbar setFilter={setFilter} />
       <ProfileModal />
-
+      <SettingsModal />
       <div className="container text-white mb-5">
         <span>Your Apps</span>
         <div className="mt-3 grid-layout">
